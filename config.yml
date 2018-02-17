@@ -1,0 +1,32 @@
+---
+containers:
+  cpus: 2
+  memory: "2GB"
+  image: "images:ubuntu/bionic/amd64"
+
+cidr_networks:
+  - network: "external"
+    host_bridge: "br-ext"
+    container_interface: "eth-ext"
+    cidr_notation: 192.168.1.0/24
+  - network: "internal"
+    host_bridge: "br-int"
+    container_interface: "eth-int"
+    cidr_notation: 10.10.0.0/24
+
+lxd_hosts:
+  ubusrv01:
+    ip: localhost
+
+dns_hosts:
+  ubudns02:
+    ip_external: 192.168.1.231
+    ip_internal: 10.10.0.31
+
+dhcp_hosts:
+  ubudhcp02:
+    ip_external: 192.168.1.232
+    ip_internal: 10.10.0.32
+
+dns_domain_external: "example.com"
+dns_domain_internal: "example.home"

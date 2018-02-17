@@ -1,0 +1,23 @@
+---
+- hosts: localhost
+  connection: local
+  tasks:
+    - name: Create a started container
+      lxd_container:
+        name: mycontainer
+        state: started
+        architecture: x86_64
+        source:
+          type: image
+          mode: pull
+          server: https://images.linuxcontainers.org
+          protocol: lxd
+          alias: ubuntu/xenial/amd64
+        config:
+          limits.cpu: "2"
+          limits.memory: "2GB"
+          boot.autostart: "true"
+        profiles: ["default"]
+        wait_for_ipv4_addresses: true
+        timeout: 600
+
