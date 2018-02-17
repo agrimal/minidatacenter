@@ -1,3 +1,3 @@
-%%shebang%%
+%%SHEBANG%%
 
 import yaml
