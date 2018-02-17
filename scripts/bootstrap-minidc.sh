@@ -46,4 +46,4 @@ git clone $MINIDC_GIT_REPO ${MINIDC_DIR}/minidc
 DIR="$(dirname "${0}")/.."
 echo "'$DIR'"
 
-sed -i "s,%%SHEBANG%%,${DIR}/bin/python," ${DIR}/scripts/create_containers.py
+sed -i "s,%%SHEBANG%%,${DIR}/bin/python," ${DIR}/scripts/create-containers.py
