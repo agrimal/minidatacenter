@@ -15,15 +15,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Where to store the MiniDC files
-MINIDC_DIR="/opt/minidc"
+# The parent directory of this script
+DIR="$(cd "$(dirname "$0")/.."; pwd)"
 
 # Packages version
 ANSIBLE_VERSION="2.4.3.0"
 PYLXD_VERSION="2.2.4"
-
-# MiniDataCenter git repo
-MINIDC_GIT_REPO="https://github.com/agrimal/minidatacenter.git"
 
 # Install package virtualenv if not already installed
 dpkg-query -W -f='${Status}' virtualenv | grep 'ok installed' > /dev/null 2>&1
@@ -33,17 +30,12 @@ if [ $? -eq 1 ]; then
     apt install -y virtualenv
 fi
 
-# Create new virtualenv
-rm -rf ${MINIDC_DIR}/python-venv
-virtualenv -p python3 --clear ${MINIDC_DIR}/python-venv
+# Create a new virtualenv
+rm -rf ${DIR}/python-venv
+virtualenv -p python3 --clear ${DIR}/python-venv
 
-source ${MINIDC_DIR}/python-venv/bin/activate
+source ${DIR}/python-venv/bin/activate
 
 pip install ansible==$ANSIBLE_VERSION pylxd==$PYLXD_VERSION
 
-git clone $MINIDC_GIT_REPO ${MINIDC_DIR}/minidc
-
-DIR="$(dirname "${0}")/.."
-echo "'$DIR'"
-
-sed -i "s,%%SHEBANG%%,${DIR}/bin/python," ${DIR}/scripts/create-containers.py
+sed -i "s,%%SHEBANG%%,${DIR}/python-venv/bin/python," ${DIR}/scripts/create-containers.py
