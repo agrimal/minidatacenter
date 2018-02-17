@@ -38,4 +38,4 @@ source ${DIR}/python-venv/bin/activate
 
 pip install ansible==$ANSIBLE_VERSION pylxd==$PYLXD_VERSION
 
-sed -i "s,%%SHEBANG%%,${DIR}/python-venv/bin/python," ${DIR}/scripts/create-containers.py
+sed -i "s,%%SHEBANG%%,#!${DIR}/python-venv/bin/python," ${DIR}/scripts/create-containers.py

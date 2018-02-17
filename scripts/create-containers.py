@@ -1,3 +1,3 @@
-/opt/minidc/python-venv/bin/python
+%%shebang%%
 
 import yaml
