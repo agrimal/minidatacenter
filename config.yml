@@ -23,10 +23,6 @@ networks:
       host_bridge: "br-int"
       container_interface: "eth-int"
       cidr_ip: 10.10.0.0/24
-    - name: "internul"
-      host_bridge: "br-int"
-      container_interface: "eth-int"
-      cidr_ip: 10.10.0.0/24
 
 containers:
     dns_hosts:

@@ -1,4 +1,4 @@
-%%SHEBANG%%
+#!/opt/minidc/python-venv/bin/python
 
 import yaml, time, os, shlex
 from pylxd import Client
@@ -14,7 +14,7 @@ env = Environment(loader=FileSystemLoader(os.path.join(path, 'templates')))
 client = Client()
 
 # Create the list of containers to create with parameters filled in config.yml file
-with open('../config.yml', 'r') as stream:
+with open(path + '/../config.yml', 'r') as stream:
     try:
         config = yaml.load(stream)
         for parameter, value in config["containers_config"].items():
