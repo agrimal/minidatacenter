@@ -1,0 +1,14 @@
+---
+- copy: Copy /etc/logrotate.conf
+  src: "{{ playbook_dir }}/../files/logrotate_logrotate.conf"
+  dest: /etc/logrotate.conf
+  owner: root
+  group: root
+  mode: 0644
+
+- copy: Copy /etc/logrotate.d/rsyslog
+  src: "{{ playbook_dir }}/../files/logrotate_rsyslog"
+  dest: /etc/logrotate.d/rsyslog
+  owner: root
+  group: root
+  mode: 0644

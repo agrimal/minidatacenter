@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import yaml, time, os, shlex, re
+import yaml, time, os, shlex, re, sys
 from pylxd import Client
 from collections import defaultdict
 from jinja2 import Environment, FileSystemLoader
@@ -28,12 +28,12 @@ ct_network = {}
 path = os.path.dirname(os.path.abspath(__file__))
 # We load files in the 'templates' directory for Jinja2
 env = Environment(loader=FileSystemLoader(os.path.join(path, 'templates')))
-# Connect to LXD API
+# We connect to LXD API
 client = Client()
 
 #
-# Create the list of containers to create with parameters filled in config.yml file
-# We get every section in a separate dictionary
+# Create the list of containers to launch with parameters filled in config.yml file
+# We get every section of config.yml in a separate dictionary
 #
 with open(path + '/../config.yml', 'r') as stream:
     try:
@@ -56,8 +56,16 @@ with open(path + '/../config.yml', 'r') as stream:
                 ct_network[container_name] = ip_dict
         dns_first_ip = config['dns_first_ip']
         dns_second_ip = config['dns_second_ip']
+        ssh_public_key = config['ssh_public_key']
     except yaml.YAMLError as e:
         print(e)
+
+#
+# We test if the public key exists
+#
+if not print os.path.isfile(ssh_public_key):
+    print("Error : SSH public key", ssh_public_key, "not found.")
+    sys.exit(1)
 
 #
 # For each container we want to create
@@ -84,7 +92,7 @@ for container in ct_list_for_create:
                 # We add the CIDR mask to the end of the container IP (netplan needs it)
                 ct_network[container_name][network_name] = ct_network[container_name][network_name] + re.sub('^.*(/[0-9]{1,2})$', '\\1', network_parameters_dict['cidr_ip'])
         # We read the template for netplan configuration file
-        template = env.get_template('netplan_config.yaml')
+        template = env.get_template('netplan_config.yaml.j2')
         # We render it
         netplan = template.render(network_config = network_config,
                           container_name = container['name'],

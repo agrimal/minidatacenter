@@ -1,0 +1,14 @@
+---
+- copy: Copy /etc/rsyslog.conf
+  src: "{{ playbook_dir }}/../files/rsyslog_rsyslog.conf"
+  dest: /etc/rsyslog.conf
+  owner: root
+  group: root
+  mode: 0644
+
+- copy: Copy /etc/rsyslog.d/50-default.conf
+  src: "{{ playbook_dir }}/../files/rsyslog_50-default.conf"
+  dest: /etc/rsyslog.d/50-default.conf
+  owner: root
+  group: root
+  mode: 0644

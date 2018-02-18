@@ -11,6 +11,7 @@ containers_source:
     protocol: "simplestreams"
     alias: "ubuntu/bionic/amd64"
 
+# The container_interface name can't include the '-' symbol
 networks:
     - name: "external"
       host_bridge: "br-ext"
@@ -24,6 +25,7 @@ networks:
       container_interface: "ethint"
       cidr_ip: 10.10.0.0/25
 
+# The network names must match those declared in previous 'networks' section
 containers:
     dns_hosts:
         ubudns02:
@@ -34,7 +36,13 @@ containers:
             external: 192.168.1.232
             internal: 10.10.0.32
 
+# Used for provisionning netplan
 dns_first_ip: *dns_internal_ip
 dns_second_ip: *gateway
+
+# The content is added into /root/.ssh/authorized_keys
+ssh_public_key: "/root/.ssh/id_rsu.pub"
+
+
 dns_domain_external: "grimal-fr.com"
 dns_domain_internal: "grimal-fr.home"
