@@ -9,7 +9,7 @@ containers_source:
     mode: "pull"
     server: "https://images.linuxcontainers.org"
     protocol: "simplestreams"
-    alias: "ubuntu/artful/amd64"
+    alias: "ubuntu/bionic/amd64"
 
 networks:
     - name: "external"
