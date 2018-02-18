@@ -41,7 +41,7 @@ dns_first_ip: *dns_internal_ip
 dns_second_ip: *gateway
 
 # The content is added into /root/.ssh/authorized_keys
-ssh_public_key: "/root/.ssh/id_rsu.pub"
+ssh_public_key: "/root/.ssh/id_rsa.pub"
 
 
 dns_domain_external: "grimal-fr.com"

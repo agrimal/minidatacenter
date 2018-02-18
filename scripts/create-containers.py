@@ -61,10 +61,14 @@ with open(path + '/../config.yml', 'r') as stream:
         print(e)
 
 #
-# We test if the public key exists
+# We test if the SSH public key exists
 #
-if not print os.path.isfile(ssh_public_key):
-    print("Error : SSH public key", ssh_public_key, "not found.")
+ssh_pubkey = ''
+try:
+    with open(ssh_public_key, 'r') as f:
+        ssh_pubkey = f.read()
+except IOError as e:
+    print('Error : problem opening SSH public key :', e)
     sys.exit(1)
 
 #
@@ -84,7 +88,7 @@ for container in ct_list_for_create:
         # We remove the default netplan configuration file
         ret = ct.execute(shlex.split("sh -c '/bin/rm /etc/netplan/*.yaml'"))
         if (ret[0] != 0):
-            print("Error :", cmd, ret)
+            print("Error :", ret)
         # For each network declared in the 'networks' section
         for network_name, network_parameters_dict in network_config.items():
             # If the network is also declared in the 'containers' section
@@ -103,5 +107,14 @@ for container in ct_list_for_create:
         newnetplan = os.linesep.join([string for string in netplan.splitlines() if string.strip()])
         # We send the file into the container
         ct.files.put('/etc/netplan/config.yaml', newnetplan)
+        # We send the SSH public key into the container
+        ret = ct.execute(['mkdir','/root/.ssh'])
+        if (ret[0] != 0):
+            print("Error :", ret)
+        ct.files.put('/root/.ssh/authorized_keys', ssh_pubkey)
         # We restart it
         ct.restart(wait=True)
+        # We install openssh-server
+        ret = ct.execute(['apt','install','-y','openssh-server'])
+        if (ret[0] != 0):
+            print("Error :", ret)
