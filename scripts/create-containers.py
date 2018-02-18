@@ -1,6 +1,6 @@
 %%SHEBANG%%
 
-import yaml, time, os, shlex
+import yaml, time, os, shlex, re
 from pylxd import Client
 from collections import defaultdict
 from jinja2 import Environment, FileSystemLoader
@@ -53,9 +53,19 @@ for container in ct_list:
         if (ret[0] != 0):
             print("Error :", cmd, ret)
         # We configure the network
+        for network, param_dict in network_config.items():
+            for container_type, container_dict in config["containers"].items():
+                if container['name'] in container_dict:
+                    container_dict[container_name]['ip_' + network] = container[container_name]['ip_' + network] + re.sub('^.*(/[0-9]{1,2})$', '', param_dict['cidr_ip']) 
         template = env.get_template('netplan_config.yaml')
         print(template.render(network_config = network_config,
                               container_name = container['name'],
                               container_config = config["containers"],
                               dns_first_ip = dns_first_ip,
                               dns_second_ip = dns_second_ip))
+        netplan = template.render(network_config = network_config,
+                              container_name = container['name'],
+                              container_config = config["containers"],
+                              dns_first_ip = dns_first_ip,
+                              dns_second_ip = dns_second_ip)
+        ct.files.put('/etc/netplan/config.yaml', netplan)

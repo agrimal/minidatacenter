@@ -6,7 +6,7 @@ network:
             dhcp6: no
             addresses: [{% for container_type, container in container_config.items() -%}
                         {% if container_name in container -%}
-                        {{ container[container_name]['ip_' + network] }}
+                        {{ container[container_name]['ip_' + network] + " " + param_dict['cidr_ip'] }}
                         {%- endif %}
                         {%- endfor -%}]
             {%- if 'gateway' in param_dict %}
