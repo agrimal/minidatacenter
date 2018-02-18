@@ -82,7 +82,7 @@ for container in ct_list_for_create:
     # If not, we create, start and configure the container
     else:
         # We create and start the container
-        print('\tCreating container', container_name, "\n")
+        print('Creating container', container_name, "...")
         ct = client.containers.create(container, wait=True)
         ct.start(wait=True)
         # We remove the default netplan configuration file

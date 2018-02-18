@@ -1,4 +1,8 @@
-# MiniDataCenter Project
+# The MiniDataCenter Project
+
+
+License
+=======
 
  Copyright (c) 2018 Aurélien Grimal
 
@@ -31,7 +35,8 @@ on a single physical server, several LXD containers with the following roles :
 Prerequisites
 =============
 
-The host must have 2 bridges called 'br-int' and 'br-ext'
+The host must :
+* have a full internet access and not be behind a proxy.
 
 Install Guide
 =============
@@ -40,12 +45,12 @@ Clone this repository :
 
     git clone https://github.com/agrimal/minidatacenter.git /opt/minidc
 
-Launch the executable :
+Bootstrap the MiniDataCenter :
 
     /opt/minidc/scripts/bootstrap-minidc.sh
 
-Modify the config.yml file accordingly to your needs
-* The container_interface's name can't include the '-' character
+Modify the config.yml file accordingly to your needs :
+* The container_interface's name can't include the '-' character.
 * The networks names must be the same in the 'networks' and 'containers' sections.
 
 Create the containers :
