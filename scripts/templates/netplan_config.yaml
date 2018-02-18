@@ -1,0 +1,24 @@
+network:
+    ethernets:
+        {% for network, param_dict in network_config.items() -%}
+        {{ param_dict['container_interface'] }}:
+            dhcp4: no
+            dhcp6: no
+            addresses: [{% for container_type, container in container_config.items() -%}
+                        {% if container_name in container -%}
+                        {{ container[container_name]['ip_' + network] }}
+                        {%- endif %}
+                        {%- endfor -%}]
+            {%- if 'gateway' in param_dict %}
+            gateway4: {{ param_dict['gateway'] }}
+            {% endif -%}
+            {%- if 'default_route' in param_dict -%}
+            routes:
+                - to: 0.0.0.0/0
+                  via: {{ param_dict['gateway'] }}
+            {% endif -%}
+            {%- if 'dns_access' in param_dict -%}
+            nameservers:
+                addresses: [{{ dns_first_ip }},{{ dns_second_ip }}]
+            {%- endif %}
+        {% endfor %}
