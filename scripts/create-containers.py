@@ -1,4 +1,4 @@
-#!/opt/minidc/python-venv/bin/python
+%%SHEBANG%%
 
 import yaml, time, os, shlex
 from pylxd import Client
