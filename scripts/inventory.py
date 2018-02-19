@@ -32,7 +32,7 @@ inventory['all']['children'] = []
 #
 #yaml.add_representer(type(None), represent_none)
 
-with open(path + '/../config2.yml', 'r') as stream:
+with open(path + '/../config.yml', 'r') as stream:
     try:
         config = yaml.load(stream)
         for container_type, container_dict in config["containers"].items():
