@@ -2,16 +2,14 @@
 - name: Copy /etc/rsyslog.conf
   copy:
     src: "{{ role_path }}/files/rsyslog_rsyslog.conf"
-    #src: ../files/rsyslog_rsyslog.conf
     dest: /etc/rsyslog.conf
     owner: root
-    #group: root
+    group: root
     mode: 0644
 - name: Copy /etc/rsyslog.d/50-default.conf
   copy:
     src: "{{ role_path }}/files/rsyslog_50-default.conf"
-    #src: ../files/rsyslog_50-default.conf
     dest: /etc/rsyslog.d/50-default.conf
     owner: root
-    #group: root
+    group: root
     mode: 0644

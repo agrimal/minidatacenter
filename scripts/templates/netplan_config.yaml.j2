@@ -23,7 +23,7 @@ network:
         addresses:
           {% for ip in param_dict['dns_ip'] %}
           - {{ ip }}
-          {% endfor -%}
+          {% endfor %}
       {% endif -%}
     {% endif %}
     {% endfor -%}

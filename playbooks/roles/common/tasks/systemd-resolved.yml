@@ -1,0 +1,8 @@
+---
+- name: Copy /etc/systemd/resolved.conf
+  copy:
+    src: "{{ role_path }}/files/systemd-resolved_resolved.conf"
+    dest: /etc/systemd/resolved.conf
+    owner: root
+    group: root
+    mode: 0644

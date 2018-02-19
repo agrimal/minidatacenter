@@ -21,6 +21,8 @@ except ImportError as e:
 
 # We get absolute path of this file
 path = os.path.dirname(os.path.abspath(__file__))
+
+# We initialise the inventory dictionary
 inventory = {}
 inventory['all'] = {}
 inventory['all']['children'] = []
@@ -29,19 +31,23 @@ inventory['all']['vars'] = {}
 inventory['_meta'] = {}
 inventory['_meta']['hostvars'] = {}
 
+# We open the config.yml file
 with open(path + '/../config.yml', 'r') as stream:
     try:
         # We load the config.yml file
         config = yaml.load(stream)
-        inventory['all']['vars']['ansible_python_interpreter'] = config['ansible_python_interpreter']
-        inventory['all']['vars']['containers_timezone'] = config['containers_timezone']
-        inventory['all']['vars']['host_key_checking'] = False
+
+        # Common variables to all containers
+        for variable, value in config["all_containers"].items():
+            inventory['all']['vars'][variable] = value
+
         # For each container group
         for container_group, container_dict in config["containers"].items():
             inventory['all']['children'].append(container_group)
             inventory[container_group] = {}
             inventory[container_group]['hosts'] = []
             inventory[container_group]['children'] = []
+
             # For each container
             for container_name, container_ip_dict in container_dict.items():
                 # We put the container name in /container_group/'hosts'/
@@ -50,8 +56,10 @@ with open(path + '/../config.yml', 'r') as stream:
                 # We put the container ip in /'_meta'/'hostvars'/container_name/'ansible_host'/
                 inventory['_meta']['hostvars'][container_name]['ansible_host'] = ( 
                     config['containers'][container_group][container_name][config['ansible_network']])
-                #inventory['_meta']['hostvars'][container_name]['ansible_python_interpreter'] = '/usr/bin/env python3'
+                
+
         print(json.dumps(inventory, indent=4, sort_keys=True))
         #print(yaml.dump(inventory, default_flow_style=False)) 
+
     except yaml.YAMLError as e:
         print(e)        

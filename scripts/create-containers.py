@@ -23,7 +23,7 @@ try:
 except ImportError as e:
     raise ImportError('Error importing modules...')
 
-DEBUG = True
+DEBUG = False
 
 ct_config = {}
 ct_source = {}

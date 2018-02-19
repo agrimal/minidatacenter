@@ -16,3 +16,4 @@
 - include_tasks: logrotate.yml
 - include_tasks: timezone.yml
 - include_tasks: motd.yml
+- include_tasks: systemd-resolved.yml
