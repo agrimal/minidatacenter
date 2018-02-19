@@ -23,9 +23,11 @@ except ImportError as e:
 path = os.path.dirname(os.path.abspath(__file__))
 inventory = {}
 inventory['all'] = {}
-inventory['all']['hosts'] = ['toto.com']
 inventory['all']['children'] = []
+inventory['_meta'] = {}
+inventory['_meta']['hostvars'] = {}
 
+inventory['all']['hosts'] = ['toto.com']
 # Prevent pyyaml from dumping None to null
 #def represent_none(self, _):
 #    return self.represent_scalar('tag:yaml.org,2002:null', '')
@@ -36,17 +38,15 @@ with open(path + '/../config.yml', 'r') as stream:
     try:
         config = yaml.load(stream)
         for container_type, container_dict in config["containers"].items():
-            #inventory['all']['children'][container_type] = {}
             inventory['all']['children'].append(container_type)
             inventory[container_type] = {}
             inventory[container_type]['hosts'] = []
             inventory[container_type]['children'] = []
             for container_name, container_ip_dict in container_dict.items():
-                #inventory['all'][container_type][container_name] = None
                 inventory[container_type]['hosts'].append(container_name)
+                inventory['_meta']['hostvars'][container_name] = {'ansible_host': config['containers'][container_type][container_name][config['ansible_network']] }
+# = {'ansible_host': config['containers'][container_type][container_name][config['ansible_network']] }
         print(json.dumps(inventory, indent=4, sort_keys=True))
         #print(yaml.dump(inventory, default_flow_style=False)) 
     except yaml.YAMLError as e:
-        print(e)
-            
-        
+        print(e)        

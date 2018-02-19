@@ -23,7 +23,7 @@ networks:
     - name: "internal"
       host_bridge: "br-int"
       container_interface: "ethint"
-      cidr_ip: 10.10.0.0/25
+      cidr_ip: 10.10.0.0/24
 
 # The network names must match those declared in previous 'networks' section
 containers:
@@ -43,6 +43,8 @@ dns_second_ip: *gateway
 # The content is added into /root/.ssh/authorized_keys
 ssh_public_key: "/root/.ssh/id_rsa.pub"
 
+# The network ansible uses to connect to the containers
+ansible_network: "internal"
 
 dns_domain_external: "grimal-fr.com"
 dns_domain_internal: "grimal-fr.home"
