@@ -14,10 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import yaml, time, os, shlex, re, sys
-from pylxd import Client
-from collections import defaultdict
-from jinja2 import Environment, FileSystemLoader
+try:
+    import yaml, os, shlex, re, sys
+    from pylxd import Client
+    #import time
+    #from collections import defaultdict
+    from jinja2 import Environment, FileSystemLoader
+except ImportError as e:
+    raise ImportError('Error importing modules...')
 
 ct_config = {}
 ct_source = {}

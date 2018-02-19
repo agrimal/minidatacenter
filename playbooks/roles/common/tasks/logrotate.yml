@@ -1,0 +1,22 @@
+---
+- name: Copy /etc/logrotate.conf
+  copy:
+    src: "{{ playbook_dir }}/../files/logrotate_logrotate.conf"
+    dest: /etc/logrotate.conf
+    owner: root
+    #group: root
+    mode: 0644
+
+- name: Copy /etc/logrotate.d/rsyslog
+  copy:
+    src: "{{ playbook_dir }}/../files/logrotate_rsyslog"
+    dest: /etc/logrotate.d/rsyslog
+    owner: root
+    #group: root
+    mode: 0644
+
+- name: Add -f option to logrotate in /etc/cron.daily/logrotate
+  lineinfile:
+    path: /etc/cron.daily/logrotate
+    regexp: '^/usr/sbin/logrotate /etc/logrotate.conf$'
+    line: '/usr/sbin/logrotate -f /etc/logrotate.conf'
