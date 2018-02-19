@@ -1,6 +1,5 @@
 network:
   ethernets:
-    {# for every network #}
     {% for network, param_dict in network_config.items() -%}
     {% if network in container_config -%}
     {{ param_dict['container_interface'] }}:
@@ -19,7 +18,6 @@ network:
         - to: 0.0.0.0/0
           via: {{ param_dict['gateway'] }}
       {% endif -%}
-      {# If the dns_ip key exists and the list is not empty #}
       {% if 'dns_ip' in param_dict and param_dict['dns_ip'] -%}
       nameservers:
         addresses:
