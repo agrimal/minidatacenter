@@ -1,26 +1,31 @@
 network:
-    ethernets:
-        {% for network, param_dict in network_config.items() -%}
-        {% if network in container_config -%}
-        {{ param_dict['container_interface'] }}:
-            dhcp4: no
-            dhcp6: no
-            addresses: [{%- for network_name, ip in container_config.items() -%}
-                            {%- if network == network_name -%}
-                                {{ ip }}
-                            {%- endif -%}
-                        {%- endfor -%}]
-            {% if 'gateway' in param_dict -%}
-            gateway4: {{ param_dict['gateway'] }}
-            {% endif -%}
-            {% if 'default_route' in param_dict -%}
-            routes:
-                - to: 0.0.0.0/0
-                  via: {{ param_dict['gateway'] }}
-            {% endif -%}
-            {% if 'dns_access' in param_dict -%}
-            nameservers:
-                addresses: [{{ dns_first_ip }},{{ dns_second_ip }}]
-            {% endif -%}
-        {% endif %}
-        {% endfor -%}
+  ethernets:
+    {# for every network #}
+    {% for network, param_dict in network_config.items() -%}
+    {% if network in container_config -%}
+    {{ param_dict['container_interface'] }}:
+      dhcp4: no
+      dhcp6: no
+      addresses: [{%- for network_name, ip in container_config.items() -%}
+                      {%- if network == network_name -%}
+                          {{ ip }}
+                      {%- endif -%}
+                  {%- endfor -%}]
+      {% if 'gateway' in param_dict and param_dict['gateway'] is not none -%}
+      gateway4: {{ param_dict['gateway'] }}
+      {% endif -%}
+      {% if param_dict['gateway_is_default_route'] == true -%}
+      routes:
+        - to: 0.0.0.0/0
+          via: {{ param_dict['gateway'] }}
+      {% endif -%}
+      {# If the dns_ip key exists and the list is not empty #}
+      {% if 'dns_ip' in param_dict and param_dict['dns_ip'] -%}
+      nameservers:
+        addresses:
+          {% for ip in param_dict['dns_ip'] %}
+          - {{ ip }}
+          {% endfor -%}
+      {% endif -%}
+    {% endif %}
+    {% endfor -%}

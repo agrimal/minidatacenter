@@ -43,11 +43,3 @@ pip install ansible==$ANSIBLE_VERSION pylxd==$PYLXD_VERSION
 # Put correct shebang in python scripts
 sed -i "s,%%SHEBANG%%,#!${DIR}/python-venv/bin/python," ${DIR}/scripts/create-containers.py
 sed -i "s,%%SHEBANG%%,#!${DIR}/python-venv/bin/python," ${DIR}/scripts/inventory.py
-
-# We configure ansible to not verify host key
-# so there's no prompt at first connection
-mkdir -p /etc/ansible
-cat << EOF > /etc/ansible/ansible.cfg
-[defaults]
-host_key_checking = False
-EOF

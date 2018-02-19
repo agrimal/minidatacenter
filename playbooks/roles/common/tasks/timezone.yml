@@ -1,0 +1,4 @@
+---
+- name: Set timezone to "{{ containers_timezone }}"
+  timezone:
+    name: "{{ containers_timezone }}"

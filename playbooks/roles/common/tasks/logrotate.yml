@@ -4,14 +4,14 @@
     src: "{{ role_path }}/files/logrotate_logrotate.conf"
     dest: /etc/logrotate.conf
     owner: root
-    #group: root
+    group: root
     mode: 0644
 - name: Copy /etc/logrotate.d/rsyslog
   copy:
     src: "{{ role_path }}/files/logrotate_rsyslog"
     dest: /etc/logrotate.d/rsyslog
     owner: root
-    #group: root
+    group: root
     mode: 0644
 - name: Force -f option with '/usr/sbin/logrotate /etc/logrotate.conf' in /etc/cron.daily/logrotate
   lineinfile:
@@ -20,8 +20,3 @@
     line: '\1 -f \2'
     state: present
     backrefs: yes
-#- name: Add '/usr/sbin/logrotate -f /etc/logrotate.conf' in /etc/cron.daily/logrotate
-#  lineinfile:
-#    path: /etc/cron.daily/logrotate
-#    line: '/usr/sbin/logrotate -f /etc/logrotate.conf'
-#    state: present

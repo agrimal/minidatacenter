@@ -14,3 +14,5 @@
 # limitations under the License.
 - include_tasks: rsyslog.yml
 - include_tasks: logrotate.yml
+- include_tasks: timezone.yml
+- include_tasks: motd.yml

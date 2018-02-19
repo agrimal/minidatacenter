@@ -1,0 +1,12 @@
+---
+- name: Deactivate Message of the day
+  lineinfile:
+    path: /etc/default/motd-news
+    regexp: '(ENABLED=)1'
+    line: '\g<1>0'
+    state: present
+    backrefs: yes
+- name: Deactivate Message of the day systemd timer
+  systemd:
+    name: motd-news.timer
+    enabled: no
