@@ -34,8 +34,12 @@ fi
 rm -rf ${DIR}/python-venv
 virtualenv -p python3 --clear ${DIR}/python-venv
 
+# Enter the virtualenv
 source ${DIR}/python-venv/bin/activate
 
+# Install needed packages
 pip install ansible==$ANSIBLE_VERSION pylxd==$PYLXD_VERSION
 
+# Put correct shebang in python scripts
 sed -i "s,%%SHEBANG%%,#!${DIR}/python-venv/bin/python," ${DIR}/scripts/create-containers.py
+sed -i "s,%%SHEBANG%%,#!${DIR}/python-venv/bin/python," ${DIR}/scripts/inventory.py

@@ -1,4 +1,4 @@
-#!/opt/minidc/python-venv/bin/python
+%%SHEBANG%%
 #
 # Copyright (c) 2018 Aurélien Grimal
 #

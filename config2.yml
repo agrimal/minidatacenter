@@ -1,7 +1,0 @@
----
-containers:
-    dns_hosts:
-        ubudns02:
-    dhcp_hosts:
-        ubudhcp02:
-        ubudhcp03:
