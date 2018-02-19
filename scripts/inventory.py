@@ -37,15 +37,21 @@ inventory['all']['hosts'] = ['toto.com']
 with open(path + '/../config.yml', 'r') as stream:
     try:
         config = yaml.load(stream)
-        for container_type, container_dict in config["containers"].items():
-            inventory['all']['children'].append(container_type)
-            inventory[container_type] = {}
-            inventory[container_type]['hosts'] = []
-            inventory[container_type]['children'] = []
+        # For each container group
+        for container_group, container_dict in config["containers"].items():
+            inventory['all']['children'].append(container_group)
+            inventory[container_group] = {}
+            inventory[container_group]['hosts'] = []
+            inventory[container_group]['children'] = []
+            # For each container
             for container_name, container_ip_dict in container_dict.items():
-                inventory[container_type]['hosts'].append(container_name)
-                inventory['_meta']['hostvars'][container_name] = {'ansible_host': config['containers'][container_type][container_name][config['ansible_network']] }
-# = {'ansible_host': config['containers'][container_type][container_name][config['ansible_network']] }
+                # We put the container name in /container_group/'hosts'/
+                inventory[container_group]['hosts'].append(container_name)
+                inventory['_meta']['hostvars'][container_name] = {}
+                # We put the container ip in /'_meta'/'hostvars'/container_name/'ansible_host'/
+                inventory['_meta']['hostvars'][container_name]['ansible_host'] = ( 
+                    config['containers'][container_group][container_name][config['ansible_network']])
+                inventory['_meta']['hostvars'][container_name]['ansible_python_interpreter'] = '/usr/bin/env python3'
         print(json.dumps(inventory, indent=4, sort_keys=True))
         #print(yaml.dump(inventory, default_flow_style=False)) 
     except yaml.YAMLError as e:
