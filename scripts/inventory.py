@@ -24,7 +24,7 @@ path = os.path.dirname(os.path.abspath(__file__))
 inventory = {}
 inventory['all'] = {}
 inventory['all']['hosts'] = ['toto.com']
-inventory['all']['children'] = {}
+inventory['all']['children'] = []
 
 # Prevent pyyaml from dumping None to null
 #def represent_none(self, _):
@@ -37,13 +37,15 @@ with open(path + '/../config2.yml', 'r') as stream:
         config = yaml.load(stream)
         for container_type, container_dict in config["containers"].items():
             #inventory['all']['children'][container_type] = {}
-            inventory['all']['children'][container_type] = {}
-            inventory['all']['children'][container_type]['hosts'] = []
+            inventory['all']['children'].append(container_type)
+            inventory[container_type] = {}
+            inventory[container_type]['hosts'] = []
+            inventory[container_type]['children'] = []
             for container_name, container_ip_dict in container_dict.items():
                 #inventory['all'][container_type][container_name] = None
-                inventory['all']['children'][container_type]['hosts'].append(container_name)
-        #print(json.dumps(inventory, indent=4, sort_keys=True))
-        print(yaml.dump(inventory, default_flow_style=False)) 
+                inventory[container_type]['hosts'].append(container_name)
+        print(json.dumps(inventory, indent=4, sort_keys=True))
+        #print(yaml.dump(inventory, default_flow_style=False)) 
     except yaml.YAMLError as e:
         print(e)
             
