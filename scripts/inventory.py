@@ -38,11 +38,11 @@ with open(path + '/../config.yml', 'r') as stream:
         config = yaml.load(stream)
 
         # Common variables to all containers
-        for variable, value in config["all_containers"].items():
+        for variable, value in config['all_containers'].items():
             inventory['all']['vars'][variable] = value
 
         # For each container group
-        for container_group, container_dict in config["containers"].items():
+        for container_group, container_dict in config['containers'].items():
             inventory['all']['children'].append(container_group)
             inventory[container_group] = {}
             inventory[container_group]['hosts'] = []
@@ -50,12 +50,24 @@ with open(path + '/../config.yml', 'r') as stream:
 
             # For each container
             for container_name, container_ip_dict in container_dict.items():
-                # We put the container name in /container_group/'hosts'/
+                # We put the container name in container_group:'hosts'
                 inventory[container_group]['hosts'].append(container_name)
                 inventory['_meta']['hostvars'][container_name] = {}
-                # We put the container ip in /'_meta'/'hostvars'/container_name/'ansible_host'/
+                # We put the container ip in '_meta':'hostvars':container_name:'ansible_host'
                 inventory['_meta']['hostvars'][container_name]['ansible_host'] = ( 
                     config['containers'][container_group][container_name][config['ansible_network']])
+
+        # Certificate Authority configuration
+        # For each container declared in 'ca_config'
+        for container_name, variables_dict in config['ca_config'].items():
+            # If the container is declared in 'containers':'ca_hosts'
+            if container_name in config['containers']['ca_hosts']:
+                for variable, value in config['ca_config'][container_name].items():
+                    inventory['_meta']['hostvars'][container_name]['ca_' + variable] = value
+            else:
+                print('Error in inventory :\n' + container_name, 'is not declared in "ca_hosts" group'
+                      ' but is declared in "ca_config" section.')
+                sys.exit(1)
                 
 
         print(json.dumps(inventory, indent=4, sort_keys=True))

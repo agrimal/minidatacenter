@@ -1,0 +1,17 @@
+---
+- name: Update repositories cache and install base packages
+  apt:
+    name: {{ item }}
+    update_cache: yes
+    state: present
+    with_items:
+        - apt-utils
+        - bash-completion
+        - dnsutils
+        - htop
+        - iftop
+        - man-db
+        - curl
+        - tcpdump
+        - mlocate
+        - net-tools

@@ -1,19 +1,28 @@
 ---
-# Copyright (c) 2018 Aurélien Grimal
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# main.yml
 - include_tasks: rsyslog.yml
 - include_tasks: logrotate.yml
-- include_tasks: timezone.yml
 - include_tasks: motd.yml
 - include_tasks: systemd-resolved.yml
+
+- name: Set timezone to "{{ containers_timezone }}"
+  timezone:
+    name: "{{ containers_timezone }}"
+
+- name: Copy /root/.bashrc
+  copy:
+    src: "{{ role_path }}/files/main_.bashrc"
+    dest: /root/.bashrc
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Copy /root/.vimrc
+  copy:
+    src: "{{ role_path }}/files/main_.vimrc"
+    dest: /root/.vimrc
+    owner: root
+    group: root
+    mode: 0644
+
+- include_tasks: apt.yml

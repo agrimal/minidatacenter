@@ -12,29 +12,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-- include_tasks: rsyslog.yml
-- include_tasks: logrotate.yml
-- include_tasks: timezone.yml
-- include_tasks: motd.yml
-- include_tasks: systemd-resolved.yml
-- name: Copy /etc/logrotate.conf
-  copy:
-    src: "{{ role_path }}/files/logrotate_logrotate.conf"
-    dest: /etc/logrotate.conf
-    owner: root
-    group: root
-    mode: 0644
-- name: Copy /etc/logrotate.d/rsyslog
-  copy:
-    src: "{{ role_path }}/files/logrotate_rsyslog"
-    dest: /etc/logrotate.d/rsyslog
-    owner: root
-    group: root
-    mode: 0644
-- name: Force -f option with '/usr/sbin/logrotate /etc/logrotate.conf' in /etc/cron.daily/logrotate
-  lineinfile:
-    path: /etc/cron.daily/logrotate
-    regexp: '(/usr/sbin/logrotate) (/etc/logrotate.conf)'
-    line: '\1 -f \2'
+- name: Update repositories cache and install "easy-rsa" package
+  apt:
+    name: easy-rsa
+    update_cache: yes
     state: present
-    backrefs: yes
+
+- name: Copy /usr/share/easy-rsa in /etc
+  src: /usr/share/easy-rsa
+  dest: /etc/
+  remote_src: yes

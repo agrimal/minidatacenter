@@ -17,3 +17,4 @@
   remote_user: root
   roles:
     - common
+    - certificate_authority

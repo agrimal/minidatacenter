@@ -11,7 +11,7 @@ networks:
       gateway: 192.168.1.1
       gateway_is_default_route: True
       dns_ip:
-        - 192.168.1.1
+          - 192.168.1.1
     - name: "internal"
       host_bridge: "br-int"
       container_interface: "ethint"
@@ -19,7 +19,7 @@ networks:
       gateway:
       gateway_is_default_route: False
       dns_ip:
-        - 10.10.0.31 # We use here the internal IP of the DNS container
+          - 10.10.0.31 # We use here the internal IP of the DNS container
 
 # containers
 # Hierarchical tree of groups, names and IP addresses for each network
@@ -70,5 +70,24 @@ all_containers:
     # Better performance, doesn't work with sudo
     pipelining: True
 
-dns_domain_external: "grimal-fr.com"
-dns_domain_internal: "grimal-fr.home"
+# Certificate Authority configuration
+ca_config:
+    ubuca02:    
+        organisation: "Tech-Tips"
+        country: "France"
+        province: "Ile-de-France"
+        ou: "tech-tips.fr"
+        city: "Paris"
+        certificates:
+            servers:
+                - "vpn.tech-tips.fr"
+                - "ldap.tech-tips.home"
+            clients:
+                - "client01"
+                - "client02"
+                - "client03"
+
+dns_config:
+    domains:
+        internal: "tech-tips.home"
+        external: "tech-tips.fr"
