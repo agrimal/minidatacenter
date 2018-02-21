@@ -17,6 +17,6 @@
   remote_user: root
   roles:
     - common
-- import_playbook: setup-dns.yml
+#- import_playbook: setup-dns.yml
 - import_playbook: setup-ca.yml
 #- include: setup-dhcp.yml

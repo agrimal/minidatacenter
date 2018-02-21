@@ -98,7 +98,8 @@ for container in ct_list_for_create:
     container_name = container['name']
     # We check if a container with the same name already exists
     if client.containers.exists(container_name) and not DEBUG:
-        print('Error, container', container_name, 'already exists, skipping...')
+        print('Warning, container', container_name, 'already exists, skipping...'
+          '\n=> Maybe you forgot to delete it ?\n')
     # If not, we create, start and configure the container
     else:
         if not DEBUG:
@@ -110,6 +111,7 @@ for container in ct_list_for_create:
             ret = ct.execute(shlex.split("sh -c '/bin/rm /etc/netplan/*.yaml'"))
             if ret[0] != 0:
                 print("Error :", ret)
+        print('\tConfiguring the network...')
         # For each network declared in the 'networks' section
         for network_name, network_parameters_dict in network_config.items():
             # If the network is also declared in the 'containers' section
@@ -138,10 +140,13 @@ for container in ct_list_for_create:
             ret = ct.execute(['mkdir','/root/.ssh'])
             if ret[0] != 0:
                 print("Error :", ret)
+            print('\tSending SSH public key into the container...')
             ct.files.put('/root/.ssh/authorized_keys', ssh_pubkey)
             # We restart the container
+            print('\tRestarting the container...')
             ct.restart(wait=True)
             # We install openssh-server
+            print('\tInstalling openssh-server...\n')
             ret = ct.execute(['apt','install','-y','openssh-server'])
             if ret[0] != 0:
                 print("Error :", ret)
