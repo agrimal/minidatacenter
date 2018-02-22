@@ -57,7 +57,7 @@ containers_source:
 # The SSH public key, added in the /root/.ssh/authorized_keys file into the containers
 ansible_ssh_public_key: "/root/.ssh/id_rsa.pub"
 # The network ansible uses to connect to the containers
-ansible_network: "internal"
+ansible_network: "external"
 
 # Common variables to all containers
 all_containers:

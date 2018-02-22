@@ -49,10 +49,12 @@ Bootstrap the MiniDataCenter :
 
     /opt/minidc/scripts/bootstrap-minidc.sh
 
-Modify the config.yml file accordingly to your needs :
-* The container_interface's name can't include the '-' character.
-* The networks names must be the same in the 'networks' and 'containers' sections.
+Modify the config.yml file accordingly to your needs
 
 Create the containers :
 
     /opt/minidc/scripts/create-containers.py
+
+Launch the Ansible playbook :
+
+    /opt/minidc/python-venv/bin/ansible-playbook -i /opt/minidc/scripts/inventory.py /opt/minidc/playbooks/setup-everything.yml
