@@ -14,15 +14,3 @@
     path: /etc/easy-rsa/keys
     state: directory
     mode: 0700
-
-- name: check existence
-  local_action: stat path=/root/toto
-  register: ca_toto
-
-- name: copy if exists
-  copy:
-    src: /root/toto
-    dest: /root/
-  when: ca_toto.stat.exists
-
-# {'changed': False, 'stat': {'exists': False}, 'failed': False} 

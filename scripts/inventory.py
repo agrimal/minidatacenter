@@ -55,7 +55,8 @@ with open(path + '/../config.yml', 'r') as stream:
                 inventory['_meta']['hostvars'][container_name] = {}
                 # We put the container ip in '_meta':'hostvars':container_name:'ansible_host'
                 inventory['_meta']['hostvars'][container_name]['ansible_host'] = ( 
-                    config['containers'][container_group][container_name][config['ansible_network']])
+                    config['containers'][container_group][container_name]
+                    [config['all_containers']['ansible_network']])
 
         # Certificate Authority configuration
         # For each container declared in 'ca_config'
@@ -69,6 +70,8 @@ with open(path + '/../config.yml', 'r') as stream:
                       ' but is declared in "ca_config" section.')
                 sys.exit(1)
                 
+
+
 
         print(json.dumps(inventory, indent=4, sort_keys=True))
         #print(yaml.dump(inventory, default_flow_style=False)) 

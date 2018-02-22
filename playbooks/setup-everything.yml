@@ -12,11 +12,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-- name: Execute tasks needed for all containers
+- name: Be sure the ansible working directory exists
+  file:
+    path: {{ ansible_working_directory }}
+    state: directory
+    mode: 0700
+
+- name: Execute the tasks common to all the containers
   hosts: all
   remote_user: root
   roles:
     - common
+
 #- import_playbook: setup-dns.yml
 - import_playbook: setup-ca.yml
 #- include: setup-dhcp.yml

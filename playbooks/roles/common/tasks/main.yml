@@ -4,6 +4,8 @@
 - include_tasks: logrotate.yml
 - include_tasks: motd.yml
 - include_tasks: systemd-resolved.yml
+- include_tasks: apt.yml
+- include_tasks: ldap.yml
 
 - name: Set timezone to "{{ containers_timezone }}"
   timezone:
@@ -24,5 +26,3 @@
     owner: root
     group: root
     mode: 0644
-
-- include_tasks: apt.yml
