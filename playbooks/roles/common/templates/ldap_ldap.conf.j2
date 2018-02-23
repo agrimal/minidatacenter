@@ -1,6 +1,6 @@
 URI         ldap://{{ ldap_url }}
-BASE        {{ ldap_base_url }}
-TLS_CACERT  {{ ca_cert_dir }}{{ ca_cert_file }}
+BASE        {{ ldap_base_dn }}
+TLS_CACERT  {{ ca_cert_dir }}/{{ ca_cert_file }}
 TLS_REQCERT demand
 SIZELIMIT   1000
 TIMELIMIT   10

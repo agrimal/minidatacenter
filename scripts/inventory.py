@@ -15,9 +15,11 @@
 # limitations under the License.
 
 try:
-    import yaml, json, os, sys
+    import yaml, json, os, sys, re
 except ImportError as e:
     raise ImportError('Error importing modules...')
+
+container_list = []
 
 # We get absolute path of this file
 path = os.path.dirname(os.path.abspath(__file__))
@@ -37,10 +39,12 @@ with open(path + '/../config.yml', 'r') as stream:
         # We load the config.yml file
         config = yaml.load(stream)
 
+        # [all_containers]
         # Common variables to all containers
         for variable, value in config['all_containers'].items():
             inventory['all']['vars'][variable] = value
 
+        # [containers]
         # For each container group
         for container_group, container_dict in config['containers'].items():
             inventory['all']['children'].append(container_group)
@@ -57,22 +61,40 @@ with open(path + '/../config.yml', 'r') as stream:
                 inventory['_meta']['hostvars'][container_name]['ansible_host'] = ( 
                     config['containers'][container_group][container_name]
                     [config['all_containers']['ansible_network']])
+                container_list.append(container_name)
 
-        # Certificate Authority configuration
-        # For each container declared in 'ca_config'
-        for container_name, variables_dict in config['ca_config'].items():
-            # If the container is declared in 'containers':'ca_hosts'
-            if container_name in config['containers']['ca_hosts']:
-                for variable, value in config['ca_config'][container_name].items():
-                    inventory['_meta']['hostvars'][container_name]['ca_' + variable] = value
-            else:
-                print('Error in inventory :\n' + container_name, 'is not declared in "ca_hosts" group'
-                      ' but is declared in "ca_config" section.')
-                sys.exit(1)
+        # [services]
+        # For each service
+        for service in config['services']:
+
+            service_tag = re.sub('_config', '', service)
+
+            # For each container declared in [containers]
+            for container in container_list:
+                # We put the variables from [service][vars] in [_meta]['hostvars'][container]
+                for variable, value in config['services'][service_tag + '_config']['vars'].items():
+                    inventory['_meta']['hostvars'][container][service_tag + '_' + variable] = value
+
+            # For each container in [services][service]
+            for container_name, variables_dict in config['services'][service].items():
+
+                # If the container is declared in [containers][group]
+                if container_name in config['containers'][service_tag + '_hosts']:
+                    # We store it's own variables in [_meta]['hostvars'][container]
+                    for variable, value in config['services'][service_tag + '_config'][container_name].items():
+                        inventory['_meta']['hostvars'][container_name][service_tag + '_' + variable] = value
+                # Else if this is the 'vars' section
+                elif container_name == 'vars':
+                    pass
+                # Else there is a problem :
+                # The container is declared in [services][service] but not in [containers][group}
+                else:
+                    print('Error in config.yml :\n' + container_name,
+                          'is declared in [services]['+ service_tag + '_config]'
+                          ' section but is not declared in [containers][' +
+                          service_tag + '_hosts] section.')
+                    sys.exit(1)
                 
-
-
-
         print(json.dumps(inventory, indent=4, sort_keys=True))
         #print(yaml.dump(inventory, default_flow_style=False)) 
 

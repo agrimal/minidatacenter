@@ -5,9 +5,8 @@
 - include_tasks: motd.yml
 - include_tasks: systemd-resolved.yml
 - include_tasks: apt.yml
-- include_tasks: ldap.yml
 
-- name: Set timezone to "{{ containers_timezone }}"
+- name: Set timezone to {{ containers_timezone }}
   timezone:
     name: "{{ containers_timezone }}"
 
@@ -24,5 +23,13 @@
     src: "{{ role_path }}/files/main_.vimrc"
     dest: /root/.vimrc
     owner: root
+    group: root
+    mode: 0644
+
+- name: Copy /etc/ldap/ldap.conf
+  template:
+    src: "{{ role_path }}/templates/ldap_ldap.conf.j2"
+    dest: /etc/ldap/ldap.conf
+    owner: root 
     group: root
     mode: 0644

@@ -57,4 +57,6 @@ Create the containers :
 
 Launch the Ansible playbook :
 
-    /opt/minidc/python-venv/bin/ansible-playbook -i /opt/minidc/scripts/inventory.py /opt/minidc/playbooks/setup-everything.yml
+    /opt/minidc/python-venv/bin/ansible-playbook \ 
+        -i /opt/minidc/scripts/inventory.py \ 
+        /opt/minidc/playbooks/setup-everything.yml

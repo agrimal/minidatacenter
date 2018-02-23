@@ -1,9 +1,0 @@
-- name: check existence
-  local_action: stat path=/root/toto
-  register: ca_toto
-
-- name: Copy 
-  copy: "{{ role_path }}/files/ldap_ldap.conf"
-    src: /root/toto
-    dest: /etc/ldap.conf
-  when: ca_toto.stat.exists

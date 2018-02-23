@@ -1,0 +1,6 @@
+---
+- name: Be sure the ansible working directory exists
+  file:
+    path: "{{ ansible_working_directory }}"
+    state: directory
+    mode: 0700

@@ -6,8 +6,33 @@
     update_cache: yes
     state: present
 
-- name: Copy /usr/share/easy-rsa in /etc
-  command: cp -r /usr/share/easy-rsa /etc/
+- name: List files in /usr/share/easy-rsa
+  find:
+    path: /usr/share/easy-rsa
+    recurse: yes
+    file_type: any
+  register: find_result
+
+- name: Create the directories 
+  file:
+    path: "{{ item.path | regex_replace('/usr/share/easy-rsa','/etc/easy-rsa') }}"
+    state: directory
+    mode: "{{ item.mode }}"
+  with_items:
+    - "{{ find_result.files }}"
+  when:
+    - item.isdir
+
+- name: Copy the files
+  copy:
+    src: "{{ item.path }}"
+    dest: "{{ item.path | regex_replace('/usr/share/easy-rsa','/etc/easy-rsa') }}"
+    remote_src: yes
+    mode: "{{ item.mode }}"
+  with_items:
+    - "{{ find_result.files }}"
+  when:
+    - item.isdir == False
 
 - name: Create directory "keys" in /etc/easy-rsa
   file:
