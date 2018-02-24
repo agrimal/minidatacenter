@@ -6,8 +6,9 @@
 - name: Update repositories cache and install "easy-rsa" package
   apt:
     name: easy-rsa
-    update_cache: yes
     state: present
+    update_cache: yes
+    cache_valid_time: 3600
   tags: packages
 
 - name: Create the directory "{{ ca_easy_rsa_install_dir }}" 
@@ -101,9 +102,10 @@
     executable: /bin/bash
   when:
     - (ca_easy_rsa_install_dir + "/keys/dh" + ca_key_size + ".pem") not in files_in_keys_directory
-  async: 300
-  poll: 10
-  register: diffie_hellman_generated
+  register: diffie_hellman_generation
+# The following doesn't work as of ansible 2.4.3, have to have for 2.4.4 where bug is fixed.
+#  async: 300
+#  poll: 5
 
 # Slurp index.txt
 - name: Read "{{ ca_easy_rsa_install_dir }}/keys/index.txt"
@@ -156,6 +158,14 @@
   register: revoke_result
   failed_when: revoke_result.rc != 2
 
+# The following doesn't work as of ansible 2.4.3, have to have for 2.4.4 where bug is fixed.
+#- name: Waiting for Diffie-Hellman key to be generated
+#  async_status:
+#    jid: "{{ diffie_hellman_generation.ansible_job_id }}"
+#  register: job_result
+#  until: job_result.finished
+#  retries: 30
+
 # Copy all keys and certificates on localhost
 - name: Copy keys and certificates on localhost in "{{ ansible_working_directory }}"
   fetch:
@@ -168,128 +178,4 @@
     - "{{ ca_certificates.servers | map('regex_replace', '^(.*)$', '\\1.key') | list }}"
     - "ca.crt"
     - "ca.key"
-
-#- debug: 
-#    var: "{{ valid_certificates_for_ca | type_debug }}"
-#
-#- debug: 
-#    var: "{{ revoked_certificates_for_ca | type_debug }}"
-#
-#- debug:
-#    msg : "{{ item }}"
-#  with_items:
-#    - "{{ valid_certificates_for_ca }}"
-#  when:
-#    - item not in ca_certificates.servers
-#    - item not in ca_certificates.clients
-
-
-# Verify existence and get checksum of "vars" in source_dir on remote
-# If this file doesn't exists, reinstall the container
-#- name: Get stats about "{{ easy_rsa_source_dir }}/vars" on "{{ inventory_hostname }}"
-#  stat:
-#    path: "{{ easy_rsa_source_dir }}/vars"
-#  register: remote_source_vars
-#  failed_when: remote_source_vars.stat.exists == False
-
-# Verify existence and get checksum of "vars" in dest_dir on remote
-#- name: Get stats about "{{ easy_rsa_dest_dir }}/vars" on "{{ inventory_hostname }}"
-#  stat:
-#    path: "{{ easy_rsa_dest_dir }}/vars"
-#  register: remote_dest_vars
-
-# Verify existence and get checksum of "vars" in working_directory on localhost
-#- name: Get stats about "{{ local_vars_path }}" on localhost
-#  local_action:
-#    module: stat
-#    path: "{{ local_vars_path }}"
-#  register: local_vars
-
-# Fetch vars from "/usr/share/easy-rsa". Will be compared later to the local_vars if it exists.
-#- name: Fetch the file "{{ easy_rsa_source_dir }}/vars" into "{{ ansible_working_directory }}"
-# fetch:
-#    src: "{{ easy_rsa_source_dir }}/vars"
-#    dest: "{{ ansible_working_directory }}"
-
-# Fetch vars from "/etc/easy-rsa" if not present on localhost and exists in
-# dest_dir on remote
-#- name: Fetch the file "{{ easy_rsa_dest_dir }}/vars" into "{{ ansible_working_directory }}"
-#  fetch:
-#    src: "{{ easy_rsa_dest_dir }}/vars"
-#    dest: "{{ ansible_working_directory }}"
-#  when:
-#    - local_vars.stat.exists == False
-#    - remote_dest_vars.stat.exists
-#  register: task_fetch_vars_from_dest_dir
-
-# Verify with "vars" from source_dir
-#- name: Verify the 'vars' file accordingly to the variables
-#  local_action:
-#    module: lineinfile
-#    dest: "{{ ansible_working_directory }}/{{ inventory_hostname }}{{ easy_rsa_source_dir }}/vars"
-#    regexp: "^export {{ item.parameter }}="
-#    line: "{{ item.parameter }}={{ item.value }}"
-#  with_items:
-#    - "{{ vars_list_of_dicts }}"
-#  register: source_vars_verification
-#  check_mode: yes
-#  changed_when: False
-#
-#- debug:
-#    var: source_vars_verification
-
-# List of all lines of the file created from the "vars" in source_dir
-#- set_fact:
-#    "correct_vars1": [
-#        "EASY_RSA=/etc/easy-rsa",
-#        "OPENSSL=\"/usr/bin/openssl\"",
-#        "PKCS11TOOL=\"/usr/bin/pkcs11-tool\""
-#    ]
-#    expected_vars: "{{ correct_vars1|default([]) + [ item.invocation.module_args.line ] }}"
-#  with_items:
-#    - "{{ source_vars_verification.results }}"
-
-#- debug:
-#    var: expected_vars
-
-#- name: Generate the 'vars' file accordingly to the variables
-#  local_action:
-#    module: lineinfile
-#    dest: "{{  }}"
-#    regexp: "^export {{ item.parameter }}="
-#    line: "{{ item.parameter }}={{ item.value }}"
-#  with_subelements:
-#    - local_vars_verification.results
-#    - invocation
-#  register: local_vars_generation
-
-#- debug:
-#    msg: "{{ local_vars_generation.results }}"
-
-# Modify vars on localhost if was not present on localhost or if checksum was
-# different between localhost and remote in dest_dir
-#- name: Generate the 'vars' file accordingly to the variables
-#  local_action:
-#    module: lineinfile
-#    dest: "{{  }}"
-#    regexp: "^export {{ item.parameter }}="
-#    line: "{{ item.parameter }}={{ item.value }}"
-#  with_items:
-#    - { parameter: 'EASY_RSA', value: "{{ easy_rsa_dest_dir }}" }
-#    - { parameter: 'OPENSSL', value: '"/usr/bin/openssl"' }
-#    - { parameter: 'PKCS11TOOL', value: '"/usr/bin/pkcs11-tool"' }
-#  when: 
-#    - task_fetch_vars_from_dest_dir.changed or
-#      task_fetch_vars_from_source_dir.changed or
-#      remote_dest_vars.stat.checksum != local_vars.stat.checksum
-#  register: local_vars_regenerated
-
-# Copy "vars" from localhost to dest_dir only if it has been regenerated
-#- name: Copy the file "vars" from localhost to "{{ easy_rsa_dest_dir }}"
-#  copy:
-#    src: "{{ local_vars_path }}"
-#    dest: "{{ easy_rsa_dest_dir }}/vars"
-#    mode: "{{ remote_source_vars.stat.mode }}"
-#  when:
-#    - local_vars_regenerated.changed
-
+    - "dh{{ ca_key_size }}.pem"
