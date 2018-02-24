@@ -1,41 +1,285 @@
 ---
 # role certificate_authority - file main.yml
+- set_fact:
+    easy_rsa_source_dir: "/usr/share/easy-rsa"
+
+#- set_fact:
+#    local_vars_path: "{{ ansible_working_directory }}/{{ inventory_hostname }}{{ easy_rsa_dest_dir }}/vars" 
+
 - name: Update repositories cache and install "easy-rsa" package
   apt:
     name: easy-rsa
     update_cache: yes
     state: present
+  tags: packages
 
-- name: List files in /usr/share/easy-rsa
+- name: Create the directory "{{ ca_easy_rsa_install_dir }}" 
+  file:
+    path: "{{ ca_easy_rsa_install_dir }}"
+    state: directory
+    mode: 0750
+
+# Get a recursive list of all files in source_dir
+- name: List files and directories in "{{ easy_rsa_source_dir }}"
   find:
-    path: /usr/share/easy-rsa
+    path: "{{ easy_rsa_source_dir }}"
     recurse: yes
     file_type: any
-  register: find_result
+  register: find_result_easy_rsa_source_dir
 
-- name: Create the directories 
+# Copy directories but not files
+- name: Create in "{{ ca_easy_rsa_install_dir }}" the directories found in "{{ easy_rsa_source_dir }}" 
   file:
-    path: "{{ item.path | regex_replace('/usr/share/easy-rsa','/etc/easy-rsa') }}"
+    path: "{{ item.path | regex_replace(easy_rsa_source_dir, ca_easy_rsa_install_dir) }}"
     state: directory
     mode: "{{ item.mode }}"
   with_items:
-    - "{{ find_result.files }}"
+    - "{{ find_result_easy_rsa_source_dir.files }}"
   when:
     - item.isdir
 
-- name: Copy the files
+# Copy all files except directories and 'vars'
+- name: Copy the files (except 'vars') from "{{ easy_rsa_source_dir }}" to "{{ ca_easy_rsa_install_dir }}"
   copy:
     src: "{{ item.path }}"
-    dest: "{{ item.path | regex_replace('/usr/share/easy-rsa','/etc/easy-rsa') }}"
+    dest: "{{ item.path | regex_replace(easy_rsa_source_dir, ca_easy_rsa_install_dir) }}"
     remote_src: yes
     mode: "{{ item.mode }}"
   with_items:
-    - "{{ find_result.files }}"
+    - "{{ find_result_easy_rsa_source_dir.files }}"
   when:
-    - item.isdir == False
+    - (item.isdir == False) and (item.path != (easy_rsa_source_dir + "/vars"))
 
-- name: Create directory "keys" in /etc/easy-rsa
+- name: Create the directory "keys" in "{{ ca_easy_rsa_install_dir }}"
   file:
-    path: /etc/easy-rsa/keys
+    path: "{{ ca_easy_rsa_install_dir }}/keys"
     state: directory
     mode: 0700
+
+- name: Copy the 'vars' file from local template into "{{ ca_easy_rsa_install_dir }}"
+  template:
+    src: "{{ role_path }}/templates/main_vars.j2"
+    dest: "{{ ca_easy_rsa_install_dir }}/vars"
+    owner: root
+    group: root
+    mode: 0644
+
+# Delete every key and certificate if ansible_renew_all is set to True in config.yml
+- name: Clean all previously generated keys and certificates
+  shell: . vars && ./clean-all
+  args:
+    chdir: "{{ ca_easy_rsa_install_dir }}"
+    executable: /bin/bash
+  when:
+    - ansible_renew_all
+
+# Get a recursive list of all files in source_dir
+- name: List files in "{{ ca_easy_rsa_install_dir }}/keys"
+  find:
+    path: "{{ ca_easy_rsa_install_dir }}/keys"
+    recurse: no
+    file_type: file
+  register: find_result_ca_easy_rsa_install_dir_keys
+
+# Create the list of files present in ca_easy_rsa_install_dir/keys
+- set_fact:
+    files_in_keys_directory: "{{ find_result_ca_easy_rsa_install_dir_keys.files | map(attribute='path') | list }}"
+
+# Only generate if ca.crt or ca.key are not in ca_easy_rsa_install_dir/keys
+- name: Generate the CA private key and certificate
+  shell: source vars && ./clean-all && ./pkitool --initca
+  args:
+    chdir: "{{ ca_easy_rsa_install_dir }}"
+    executable: /bin/bash
+  when:
+    - (ca_easy_rsa_install_dir + "/keys/ca.crt") not in files_in_keys_directory or
+      (ca_easy_rsa_install_dir + "/keys/ca.key") not in files_in_keys_directory or
+      (ca_easy_rsa_install_dir + "/keys/index.txt") not in files_in_keys_directory
+
+# Slurp index.txt
+- name: Read "{{ ca_easy_rsa_install_dir }}/keys/index.txt"
+  slurp:
+    src: "{{ ca_easy_rsa_install_dir }}/keys/index.txt"
+  register: index_txt
+
+- name: Generate the list of the certificates still valid for the ca
+  set_fact:
+    valid_certificates_for_ca: "{{ index_txt['content'] | b64decode | regex_findall('V\t.*\n') | map('regex_replace', '^V.*/CN=(.*)/name=.*\n$', '\\1') | list }}"
+    revoked_certificates_for_ca: "{{ index_txt['content'] | b64decode | regex_findall('R\t.*\n') | map('regex_replace', '^R.*/CN=(.*)/name=.*\n$', '\\1') | list }}"
+
+# Only generate if server_name.crt or server_name.key are not in ca_easy_rsa_install_dir/keys
+- name: Generate the servers private keys and certificates
+  shell: . vars && ./pkitool --server "{{ item }}"
+  args:
+    chdir: "{{ ca_easy_rsa_install_dir }}"
+    executable: /bin/bash
+  with_items:
+    - "{{ ca_certificates.servers }}"
+  when:
+    - (ca_easy_rsa_install_dir + "/keys/" + item + ".key") not in files_in_keys_directory or
+      (ca_easy_rsa_install_dir + "/keys/" + item + ".crt") not in files_in_keys_directory or
+      item not in valid_certificates_for_ca
+
+# Only generate if client_name.crt or client_name.key are not in ca_easy_rsa_install_dir/keys
+- name: Generate the clients private keys and certificates
+  shell: source vars && ./pkitool "{{ item }}"
+  args:
+    chdir: "{{ ca_easy_rsa_install_dir }}"
+    executable: /bin/bash
+  with_items:
+    - "{{ ca_certificates.clients }}"
+  when:
+    - (ca_easy_rsa_install_dir + "/keys/" + item + ".key") not in files_in_keys_directory or
+      (ca_easy_rsa_install_dir + "/keys/" + item + ".crt") not in files_in_keys_directory or
+      item not in valid_certificates_for_ca
+
+#- debug:
+#    var: ca_certificates.clients
+#
+#- debug:
+#    var: ca_certificates.servers
+#
+#- debug:
+#    var: valid_certificates_for_ca
+#
+#- debug:
+#    var: revoked_certificates_for_ca
+
+- name: Revoke the certificates removed from config file
+  shell: source vars && ./revoke-full "{{ item }}"
+  args:
+    chdir: "{{ ca_easy_rsa_install_dir }}"
+    executable: /bin/bash
+  with_items:
+    - "{{ valid_certificates_for_ca }}"
+  when:
+    - item not in ca_certificates.servers
+    - item not in ca_certificates.clients
+  register: revoke_result
+  failed_when: revoke_result.rc != 2
+
+
+#- debug: 
+#    var: "{{ valid_certificates_for_ca | type_debug }}"
+#
+#- debug: 
+#    var: "{{ revoked_certificates_for_ca | type_debug }}"
+#
+#- debug:
+#    msg : "{{ item }}"
+#  with_items:
+#    - "{{ valid_certificates_for_ca }}"
+#  when:
+#    - item not in ca_certificates.servers
+#    - item not in ca_certificates.clients
+
+
+# Verify existence and get checksum of "vars" in source_dir on remote
+# If this file doesn't exists, reinstall the container
+#- name: Get stats about "{{ easy_rsa_source_dir }}/vars" on "{{ inventory_hostname }}"
+#  stat:
+#    path: "{{ easy_rsa_source_dir }}/vars"
+#  register: remote_source_vars
+#  failed_when: remote_source_vars.stat.exists == False
+
+# Verify existence and get checksum of "vars" in dest_dir on remote
+#- name: Get stats about "{{ easy_rsa_dest_dir }}/vars" on "{{ inventory_hostname }}"
+#  stat:
+#    path: "{{ easy_rsa_dest_dir }}/vars"
+#  register: remote_dest_vars
+
+# Verify existence and get checksum of "vars" in working_directory on localhost
+#- name: Get stats about "{{ local_vars_path }}" on localhost
+#  local_action:
+#    module: stat
+#    path: "{{ local_vars_path }}"
+#  register: local_vars
+
+# Fetch vars from "/usr/share/easy-rsa". Will be compared later to the local_vars if it exists.
+#- name: Fetch the file "{{ easy_rsa_source_dir }}/vars" into "{{ ansible_working_directory }}"
+# fetch:
+#    src: "{{ easy_rsa_source_dir }}/vars"
+#    dest: "{{ ansible_working_directory }}"
+
+# Fetch vars from "/etc/easy-rsa" if not present on localhost and exists in
+# dest_dir on remote
+#- name: Fetch the file "{{ easy_rsa_dest_dir }}/vars" into "{{ ansible_working_directory }}"
+#  fetch:
+#    src: "{{ easy_rsa_dest_dir }}/vars"
+#    dest: "{{ ansible_working_directory }}"
+#  when:
+#    - local_vars.stat.exists == False
+#    - remote_dest_vars.stat.exists
+#  register: task_fetch_vars_from_dest_dir
+
+# Verify with "vars" from source_dir
+#- name: Verify the 'vars' file accordingly to the variables
+#  local_action:
+#    module: lineinfile
+#    dest: "{{ ansible_working_directory }}/{{ inventory_hostname }}{{ easy_rsa_source_dir }}/vars"
+#    regexp: "^export {{ item.parameter }}="
+#    line: "{{ item.parameter }}={{ item.value }}"
+#  with_items:
+#    - "{{ vars_list_of_dicts }}"
+#  register: source_vars_verification
+#  check_mode: yes
+#  changed_when: False
+#
+#- debug:
+#    var: source_vars_verification
+
+# List of all lines of the file created from the "vars" in source_dir
+#- set_fact:
+#    "correct_vars1": [
+#        "EASY_RSA=/etc/easy-rsa",
+#        "OPENSSL=\"/usr/bin/openssl\"",
+#        "PKCS11TOOL=\"/usr/bin/pkcs11-tool\""
+#    ]
+#    expected_vars: "{{ correct_vars1|default([]) + [ item.invocation.module_args.line ] }}"
+#  with_items:
+#    - "{{ source_vars_verification.results }}"
+
+#- debug:
+#    var: expected_vars
+
+#- name: Generate the 'vars' file accordingly to the variables
+#  local_action:
+#    module: lineinfile
+#    dest: "{{  }}"
+#    regexp: "^export {{ item.parameter }}="
+#    line: "{{ item.parameter }}={{ item.value }}"
+#  with_subelements:
+#    - local_vars_verification.results
+#    - invocation
+#  register: local_vars_generation
+
+#- debug:
+#    msg: "{{ local_vars_generation.results }}"
+
+# Modify vars on localhost if was not present on localhost or if checksum was
+# different between localhost and remote in dest_dir
+#- name: Generate the 'vars' file accordingly to the variables
+#  local_action:
+#    module: lineinfile
+#    dest: "{{  }}"
+#    regexp: "^export {{ item.parameter }}="
+#    line: "{{ item.parameter }}={{ item.value }}"
+#  with_items:
+#    - { parameter: 'EASY_RSA', value: "{{ easy_rsa_dest_dir }}" }
+#    - { parameter: 'OPENSSL', value: '"/usr/bin/openssl"' }
+#    - { parameter: 'PKCS11TOOL', value: '"/usr/bin/pkcs11-tool"' }
+#  when: 
+#    - task_fetch_vars_from_dest_dir.changed or
+#      task_fetch_vars_from_source_dir.changed or
+#      remote_dest_vars.stat.checksum != local_vars.stat.checksum
+#  register: local_vars_regenerated
+
+# Copy "vars" from localhost to dest_dir only if it has been regenerated
+#- name: Copy the file "vars" from localhost to "{{ easy_rsa_dest_dir }}"
+#  copy:
+#    src: "{{ local_vars_path }}"
+#    dest: "{{ easy_rsa_dest_dir }}/vars"
+#    mode: "{{ remote_source_vars.stat.mode }}"
+#  when:
+#    - local_vars_regenerated.changed
+
