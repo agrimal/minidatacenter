@@ -3,9 +3,6 @@
 - set_fact:
     easy_rsa_source_dir: "/usr/share/easy-rsa"
 
-#- set_fact:
-#    local_vars_path: "{{ ansible_working_directory }}/{{ inventory_hostname }}{{ easy_rsa_dest_dir }}/vars" 
-
 - name: Update repositories cache and install "easy-rsa" package
   apt:
     name: easy-rsa
@@ -96,6 +93,18 @@
       (ca_easy_rsa_install_dir + "/keys/ca.key") not in files_in_keys_directory or
       (ca_easy_rsa_install_dir + "/keys/index.txt") not in files_in_keys_directory
 
+# Only generate if dh.pem is not in ca_easy_rsa_install_dir/keys
+- name: Generate the Diffie-Hellman key
+  shell: source vars && ./build-dh
+  args:
+    chdir: "{{ ca_easy_rsa_install_dir }}"
+    executable: /bin/bash
+  when:
+    - (ca_easy_rsa_install_dir + "/keys/dh" + ca_key_size + ".pem") not in files_in_keys_directory
+  async: 300
+  poll: 10
+  register: diffie_hellman_generated
+
 # Slurp index.txt
 - name: Read "{{ ca_easy_rsa_install_dir }}/keys/index.txt"
   slurp:
@@ -107,7 +116,7 @@
     valid_certificates_for_ca: "{{ index_txt['content'] | b64decode | regex_findall('V\t.*\n') | map('regex_replace', '^V.*/CN=(.*)/name=.*\n$', '\\1') | list }}"
     revoked_certificates_for_ca: "{{ index_txt['content'] | b64decode | regex_findall('R\t.*\n') | map('regex_replace', '^R.*/CN=(.*)/name=.*\n$', '\\1') | list }}"
 
-# Only generate if server_name.crt or server_name.key are not in ca_easy_rsa_install_dir/keys
+# Only generate if server_name.crt or server_name.key are not in ca_easy_rsa_install_dir/keys or if the certificate is revoked
 - name: Generate the servers private keys and certificates
   shell: . vars && ./pkitool --server "{{ item }}"
   args:
@@ -120,7 +129,7 @@
       (ca_easy_rsa_install_dir + "/keys/" + item + ".crt") not in files_in_keys_directory or
       item not in valid_certificates_for_ca
 
-# Only generate if client_name.crt or client_name.key are not in ca_easy_rsa_install_dir/keys
+# Only generate if client_name.crt or client_name.key are not in ca_easy_rsa_install_dir/keys or if the certificate is revoked
 - name: Generate the clients private keys and certificates
   shell: source vars && ./pkitool "{{ item }}"
   args:
@@ -133,18 +142,7 @@
       (ca_easy_rsa_install_dir + "/keys/" + item + ".crt") not in files_in_keys_directory or
       item not in valid_certificates_for_ca
 
-#- debug:
-#    var: ca_certificates.clients
-#
-#- debug:
-#    var: ca_certificates.servers
-#
-#- debug:
-#    var: valid_certificates_for_ca
-#
-#- debug:
-#    var: revoked_certificates_for_ca
-
+# Revoke certificates not in the allowed lists
 - name: Revoke the certificates removed from config file
   shell: source vars && ./revoke-full "{{ item }}"
   args:
@@ -158,6 +156,18 @@
   register: revoke_result
   failed_when: revoke_result.rc != 2
 
+# Copy all keys and certificates on localhost
+- name: Copy keys and certificates on localhost in "{{ ansible_working_directory }}"
+  fetch:
+    src: "{{ ca_easy_rsa_install_dir }}/keys/{{ item }}"
+    dest: "{{ ansible_working_directory }}"
+  with_items:
+    - "{{ ca_certificates.clients | map('regex_replace', '^(.*)$', '\\1.crt') | list }}"
+    - "{{ ca_certificates.clients | map('regex_replace', '^(.*)$', '\\1.key') | list }}"
+    - "{{ ca_certificates.servers | map('regex_replace', '^(.*)$', '\\1.crt') | list }}"
+    - "{{ ca_certificates.servers | map('regex_replace', '^(.*)$', '\\1.key') | list }}"
+    - "ca.crt"
+    - "ca.key"
 
 #- debug: 
 #    var: "{{ valid_certificates_for_ca | type_debug }}"

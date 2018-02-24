@@ -15,6 +15,5 @@
 - name: Install Certificate Authority server
   hosts: ca_hosts
   remote_user: root
-  strategy: debug
   roles:
     - certificate_authority
