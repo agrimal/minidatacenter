@@ -13,10 +13,10 @@ networks:
       host_bridge: "br-ext"
       container_interface: "ethext"
       cidr_ip: 192.168.1.0/24
-      gateway: 192.168.1.1
+      gateway: 192.168.1.1 # Put here the IP of your router to internet
       gateway_is_default_route: True
       dns_ip:
-          - 192.168.1.1
+          - 192.168.1.1 # I recommend to put here the IP of your router in case of the DNS container fails
     - name: "internal"
       host_bridge: "br-int"
       container_interface: "ethint"
@@ -131,5 +131,5 @@ services:
     dns_config:
         vars:
             domains:
-                internal: 'tech-tips.home'
-                external: 'tech-tips.fr'
+                - 'tech-tips.home'
+                - 'tech-tips.fr'

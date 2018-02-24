@@ -54,14 +54,23 @@ with open(path + '/../config.yml', 'r') as stream:
 
             # For each container
             for container_name, container_ip_dict in container_dict.items():
+
+                container_list.append(container_name)
+
                 # We put the container name in container_group:'hosts'
                 inventory[container_group]['hosts'].append(container_name)
+
                 inventory['_meta']['hostvars'][container_name] = {}
+
                 # We put the container ip in '_meta':'hostvars':container_name:'ansible_host'
                 inventory['_meta']['hostvars'][container_name]['ansible_host'] = ( 
                     config['containers'][container_group][container_name]
                     [config['all_containers']['ansible_network']])
-                container_list.append(container_name)
+
+                inventory['_meta']['hostvars'][container_name]['networks'] = []
+                for network in config['networks']:
+                    if network['name'] in config['containers'][container_group][container_name]:
+                        inventory['_meta']['hostvars'][container_name]['networks'].append(network)
 
         # [services]
         # For each service

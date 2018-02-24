@@ -1,7 +1,7 @@
 ---
 - name: Update repositories cache and install base packages
   action: >
-    {{ ansible_pkg_mgr }} name={{ item }} update_cache=yes state=present
+    {{ ansible_pkg_mgr }} name={{ item }} update_cache=yes cache_valid_time=3600 state=present
   with_items:
       - apt-utils
       - bash-completion

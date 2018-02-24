@@ -16,4 +16,4 @@
   hosts: ca_hosts
   remote_user: root
   roles:
-    - certificate_authority
+    - ca
