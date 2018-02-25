@@ -30,6 +30,7 @@ ct_source = {}
 network_config = {}
 ct_list_for_create = []
 ct_network = {}
+dns_domains = []
 # We get absolute path of this file
 path = os.path.dirname(os.path.abspath(__file__))
 # We load files in the 'templates' directory for Jinja2
@@ -65,6 +66,8 @@ with open(path + '/../config.yml', 'r') as stream:
                       })
                 # Contains the IP of each container
                 ct_network[container_name] = ip_dict
+        for domain in config['services']['dns_config']['vars']['domains']:
+            dns_domains.append(domain)
         ssh_public_key = config['ansible_ssh_public_key']
     except yaml.YAMLError as e:
         print(e)
@@ -76,6 +79,7 @@ if DEBUG:
     print('\nnetwork_config :\n', network_config)
     print('\nct_network :\n', ct_network)
     print('\nssh_public_key :\n', ssh_public_key)
+    print('\ndns_domains :\n', dns_domains)
 
 # We don't need these anymore
 del ct_config, ct_source
@@ -124,7 +128,8 @@ for container in ct_list_for_create:
         # We render it
         netplan = template.render(network_config = network_config,
                                   container_name = container['name'],
-                                  container_config = ct_network[container['name']])
+                                  container_config = ct_network[container['name']],
+                                  dns_domains = dns_domains)
         # Due to a Jinja2 bug with '{%+' and '+%}', we need to remove manually some empty lines
         newnetplan = os.linesep.join([string for string in netplan.splitlines() if string.strip()])
         if DEBUG:

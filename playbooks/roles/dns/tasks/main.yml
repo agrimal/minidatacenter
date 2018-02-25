@@ -1,6 +1,9 @@
 ---
 # role dns - file main.yml
 
+- set_fact:
+    tsig_key: 'tsig-key'
+
 - name: Update repositories cache and install bind9 relative packages
   action: >
     {{ ansible_pkg_mgr }} name={{ item }} update_cache=yes cache_valid_time=3600 state=present
@@ -33,12 +36,53 @@
     group: root
     mode: 0644
 
+- name: Modify /etc/default/bind9
+  replace:
+    path: /etc/default/bind9
+    regexp: '^OPTIONS="-u bind"$'
+    replace: 'OPTIONS="-u bind -4 -n 2"'
+
+- name: Check if "{{ ansible_working_directory }}/{{ inventory_hostname }}/etc/bind" exists
+  local_action:
+    module: stat
+    path: "{{ ansible_working_directory }}/{{ inventory_hostname }}/etc/bind"
+  register: ansible_working_dir_etc_bind
+
+- debug:
+    var: ansible_working_dir_etc_bind
+
+- name: List files in "{{ ansible_working_directory }}/{{ inventory_hostname }}/etc/bind"
+  find:
+    path: "{{ ansible_working_directory }}/{{ inventory_hostname }}/etc/bind/"
+  register: ansible_working_dir_etc_bind_find
+  when: ansible_working_dir_etc_bind.stat.exists
+
+- debug:
+    var: ansible_working_dir_etc_bind_find
+
+- set_fact:
+    tsig_key_file: list|default([]) + [ item ]
+  with_items:
+    - ansible_working_dir_etc_bind_find.files | match('K.*\+.*\+.*key)
 
 
+- name: Generate TSIG key "{{ tsig_key }}"
+  shell: dnssec-keygen -a HMAC-SHA512 -b 512 -K /etc/bind -r /dev/urandom -n HOST "{{ tsig_key }}"
+  args:
+    executable: /bin/bash
+  register: tsig_key_generated
 
+- debug:
+    var: tsig_key_generated
 
-
-
+- name: Fetch the TSIG key from /etc/bind to "{{ ansible_working_directory }}/{{ inventory_hostname }}/etc/bind"
+  fetch:
+    src: "/etc/bind/{{ item }}"
+    dest: "{{ ansible_working_directory }}"
+  when: tsig_key_generated.changed
+  with_items:
+    - "{{ tsig_key_generated.stdout + '.private' }}"
+    - "{{ tsig_key_generated.stdout + '.key' }}"
 
 
 

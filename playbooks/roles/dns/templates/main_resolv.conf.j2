@@ -1,7 +1,8 @@
 search {% for domain in dns_domains %}{{ domain }} {% endfor %}
+
 nameserver 127.0.0.1
 {% for network in networks %}
-    {% if network['gateway_is_default_route'] %}
+{% if network['gateway_is_default_route'] %}
 nameserver {{ network['dns_ip'][0] }}
-    {% endif %}
+{% endif %}
 {% endfor %}

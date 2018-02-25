@@ -179,3 +179,9 @@
     - "ca.crt"
     - "ca.key"
     - "dh{{ ca_key_size }}.pem"
+
+- name: Copy CRL (Certificates Revoke List) if there is one
+  fetch:
+    src: "{{ ca_easy_rsa_install_dir }}/keys/crl.pem"
+    dest: "{{ ansible_working_directory }}"
+    fail_on_missing: no

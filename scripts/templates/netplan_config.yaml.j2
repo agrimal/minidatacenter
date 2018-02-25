@@ -24,6 +24,10 @@ network:
           {% for ip in param_dict['dns_ip'] %}
           - {{ ip }}
           {% endfor %}
+        search:
+          {% for domain in dns_domains %}
+          - {{ domain }}
+          {% endfor %}
       {% endif -%}
     {% endif %}
     {% endfor -%}
