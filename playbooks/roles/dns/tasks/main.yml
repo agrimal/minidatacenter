@@ -1,9 +1,6 @@
 ---
 # role dns - file main.yml
 
-- set_fact:
-    tsig_key: 'tsig-key'
-
 - name: Update repositories cache and install bind9 relative packages
   action: >
     {{ ansible_pkg_mgr }} name={{ item }} update_cache=yes cache_valid_time=3600 state=present
@@ -42,50 +39,175 @@
     regexp: '^OPTIONS="-u bind"$'
     replace: 'OPTIONS="-u bind -4 -n 2"'
 
-- name: Check if "{{ ansible_working_directory }}/{{ inventory_hostname }}/etc/bind" exists
+# localhost
+- name: Check if "{{ ansible_working_directory }}/{{ inventory_hostname }}/etc/bind" exists on localhost
   local_action:
     module: stat
     path: "{{ ansible_working_directory }}/{{ inventory_hostname }}/etc/bind"
-  register: ansible_working_dir_etc_bind
+  register: local_etc_bind
 
-- debug:
-    var: ansible_working_dir_etc_bind
+# remote
+- name: Check if "/etc/bind" exists
+  stat:
+    path: /etc/bind
+  register: remote_etc_bind
 
-- name: List files in "{{ ansible_working_directory }}/{{ inventory_hostname }}/etc/bind"
-  find:
+# localhost
+- name: Find ".key" and ".private" files in "{{ ansible_working_directory }}/{{ inventory_hostname }}/etc/bind" on localhost
+  local_action:
+    module: find
     path: "{{ ansible_working_directory }}/{{ inventory_hostname }}/etc/bind/"
-  register: ansible_working_dir_etc_bind_find
-  when: ansible_working_dir_etc_bind.stat.exists
+    use_regex: yes
+    patterns: '^K.*\.(key|private)$'
+    recurse: no
+  when:
+    - not ansible_renew_all # This task is useless if we want to clean everything
+    - local_etc_bind.stat.exists
+  register: local_etc_bind_find_result
+
+# remote
+- name: Find ".key" and ".private" files in "/etc/bind"
+  find:
+    path: /etc/bind
+    use_regex: yes
+    patterns: '^K.*\.(key|private)$'
+    recurse: no
+  when:
+    - remote_etc_bind.stat.exists
+  register: remote_etc_bind_find_result
+
+# localhost
+- name: Generate the list of ".key" and ".private" files in "{{ ansible_working_directory }}/{{ inventory_hostname }}/etc/bind" on localhost
+  set_fact:
+    local_tsig_key_files: "{{ local_etc_bind_find_result.files | map(attribute='path') | list }}"
+  when:
+    - not ansible_renew_all # This task is useless if we want to clean everything
+    - local_etc_bind.stat.exists
 
 - debug:
-    var: ansible_working_dir_etc_bind_find
+    var: remote_etc_bind
 
-- set_fact:
-    tsig_key_file: list|default([]) + [ item ]
+# remote
+- name: Generate the list of ".key" and ".private" files in "/etc/bind"
+  set_fact:
+    remote_tsig_key_files: "{{ remote_etc_bind_find_result.files | map(attribute='path') | list }}"
+  when:
+#    - not ansible_renew_all # This task is useless if we want to clean everything
+    - remote_etc_bind.stat.exists
+
+- name: Decide wether all TSIG files should be deleted or not
+  set_fact:
+    ansible_renew_all: True
+  when:
+    - ansible_renew_all or
+      (local_tsig_key_files is defined) and (local_tsig_key_files | length != 2) or
+      (remote_tsig_key_files is defined) and (remote_tsig_key_files | length != 2)
+
+# localhost
+- name: Delete all files in "{{ ansible_working_directory }}/{{ inventory_hostname }}/etc/bind"
+  local_action:
+    module: file
+    state: "{{ item }}"
+    path: "{{ ansible_working_directory }}/{{ inventory_hostname }}/etc/bind"
+    owner: root
+    group: root
+    mode: 0755
   with_items:
-    - ansible_working_dir_etc_bind_find.files | match('K.*\+.*\+.*key)
+    - absent
+    - directory
+  when:
+    - ansible_renew_all
+  register: local_etc_bind_delete_task
 
+# remote
+- name: Delete ".key" and ".private" files in "/etc/bind"
+  file:
+    state: absent
+    path: "{{ item }}"
+  with_items:
+    - "{{ remote_tsig_key_files }}"
+  when:
+    - ansible_renew_all
+  register: remote_etc_bind_delete_task
 
-- name: Generate TSIG key "{{ tsig_key }}"
-  shell: dnssec-keygen -a HMAC-SHA512 -b 512 -K /etc/bind -r /dev/urandom -n HOST "{{ tsig_key }}"
+# Generate new TSIG files
+- name: Generate TSIG key "{{ dns_tsig_key_name }}"
+  shell: dnssec-keygen -a HMAC-SHA512 -b 512 -K /etc/bind -r /dev/urandom -n HOST "{{ dns_tsig_key_name }}"
   args:
     executable: /bin/bash
-  register: tsig_key_generated
+  when:
+    - ansible_renew_all
+  register: tsig_key_generate_task
 
-- debug:
-    var: tsig_key_generated
-
-- name: Fetch the TSIG key from /etc/bind to "{{ ansible_working_directory }}/{{ inventory_hostname }}/etc/bind"
+# Fetch them is new
+- name: Fetch the newly TSIG key files from /etc/bind to "{{ ansible_working_directory }}/{{ inventory_hostname }}/etc/bind"
   fetch:
     src: "/etc/bind/{{ item }}"
     dest: "{{ ansible_working_directory }}"
-  when: tsig_key_generated.changed
   with_items:
-    - "{{ tsig_key_generated.stdout + '.private' }}"
-    - "{{ tsig_key_generated.stdout + '.key' }}"
+    - "{{ tsig_key_generate_task.stdout + '.private' }}"
+    - "{{ tsig_key_generate_task.stdout + '.key' }}"
+  when:
+    - ansible_renew_all
 
+# Else verify local against remote keys
+- name: Verify the TSIG key files in /etc/bind are identical to those in "{{ ansible_working_directory }}/{{ inventory_hostname }}/etc/bind"
+  fetch:
+    src: "{{ item }}"
+    dest: "{{ ansible_working_directory }}"
+  with_items:
+    - "{{ remote_tsig_key_files }}"
+  when:
+    - remote_tsig_key_files is defined
+    - not ansible_renew_all
 
+- name: Read ".key" file when it was generated
+  local_action:
+    module: slurp
+    path: "{{ ansible_working_directory }}/{{ inventory_hostname }}/etc/bind/{{ tsig_key_generate_task.stdout }}.key"
+  when:
+    - ansible_renew_all
+  register: local_tsig_key_private_file_changed
 
+- name: Read ".key" file when it was not changed
+  local_action:
+    module: slurp
+    path: "{{ ansible_working_directory }}/{{ inventory_hostname }}{{ item }}"
+  with_items:
+    - "{{ remote_tsig_key_files | select('match', '^.*key$') | list }}"
+  when:
+    - not ansible_renew_all
+  register: local_tsig_key_private_file_unchanged
+
+# Here the (?s) allow the '.' to match any character, including '\n' which is not the default behavior.
+# See https://docs.python.org/3/library/re.html (?imsx-imsx:...) for more information
+- name: Extract key name and secret from ".key" file
+  set_fact:
+    dns_tsig_key_secret: "{{ item.content | b64decode | regex_replace('^.* IN KEY [0-9]{3} [0-9] [0-9]{3} (.*) (.*)\n$', '\\1\\2') }}"
+    dns_tsig_key_name: "{{ item.content | b64decode | regex_replace('^(.*)\\. IN KEY.*\n$', '\\1') }}"
+  with_items:
+    - "{{ local_tsig_key_private_file_unchanged.results }}"
+  when:
+    - not ansible_renew_all
+
+- name: Extract key name and secret from ".key" file when it was generated
+  set_fact:
+    dns_tsig_key_secret: "{{ item.content | b64decode | regex_replace('^.* IN KEY [0-9]{3} [0-9] [0-9]{3} (.*) (.*)\n$', '\\1\\2') }}"
+    dns_tsig_key_name: "{{ item.content | b64decode | regex_replace('^(.*)\\. IN KEY.*\n$', '\\1') }}"
+  with_items:
+    - "{{ local_tsig_key_private_file_changed }}"
+  when:
+    - ansible_renew_all
+
+- name: Convert TSIG key for being readable by bind and isc-dhcpd
+  template:
+    src: "{{ role_path }}/templates/main_tsig_key.j2"
+    dest: /etc/bind/named.conf.tsigkeys
+    owner: root
+    group: root
+    mode: 0644
+
+  
 
 
 
