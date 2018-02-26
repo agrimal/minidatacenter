@@ -29,11 +29,12 @@ Prerequisites
 =============
 
 The host (physical computer) :
-__Must :__
-* have a full internet access and not be behind a proxy.
 
-__Should :__
-* have at least 8 GB memory and 4 CPU cores
+- __Must :__
+    * have a full internet access and not be behind a proxy.
+
+- __Should :__
+    * have at least 8 GB memory and 4 CPU cores
 
 Quick Install Guide
 ===================
@@ -42,27 +43,31 @@ Quick Install Guide
 [Host Install Guide](docs/host_install_guide.md)
 
 2. Clone this repository :
+
 ```bash
 git clone https://github.com/agrimal/minidatacenter.git /opt/minidc
 ```
 
 3. Bootstrap the MiniDataCenter :
+
 ```bash
-    /opt/minidc/scripts/bootstrap-minidc.sh
+/opt/minidc/scripts/bootstrap-minidc.sh
 ```
 
 4. Modify the config.yml file accordingly to your needs
 
 5. Create the containers :
+
 ```bash
-    /opt/minidc/scripts/create-containers.py
+/opt/minidc/scripts/create-containers.py
 ```
 
 6. Launch the Ansible playbook :
+
 ```bash
-    /opt/minidc/python-venv/bin/ansible-playbook \ 
-        -i /opt/minidc/scripts/inventory.py \ 
-        /opt/minidc/playbooks/setup-everything.yml
+/opt/minidc/python-venv/bin/ansible-playbook \ 
+    -i /opt/minidc/scripts/inventory.py \ 
+    /opt/minidc/playbooks/setup-everything.yml
 ```
 
 7. Enjoy !
@@ -77,7 +82,7 @@ License
  you may not use this file except in compliance with the License.
  You may obtain a copy of the License at
 
-     http://www.apache.org/licenses/LICENSE-2.0
+   http://www.apache.org/licenses/LICENSE-2.0
 
  Unless required by applicable law or agreed to in writing, software
  distributed under the License is distributed on an "AS IS" BASIS,
