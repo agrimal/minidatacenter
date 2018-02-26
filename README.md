@@ -25,17 +25,6 @@ Coming soon :
 - [ ] Cyrus Server (mail)
 - [ ] SMTP Relay Server
 
-Prerequisites
-=============
-
-The host (physical computer) :
-
-- __Must :__
-    * have a full internet access and not be behind a proxy.
-
-- __Should :__
-    * have at least 8 GB memory and 4 CPU cores
-
 Quick Install Guide
 ===================
 
