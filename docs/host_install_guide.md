@@ -21,18 +21,26 @@ First i will tell you about my hardware configuration, so if you're going to buy
 the hardware soon, maybe it'll give you some idea. Keep in mind that and old
 server or a home computer is just fine to install The Minidatacenter project.
 
-CPU : Intel Xeon E3 1240v6 (4c/8t) @3,7/3,9 GHz
-Motherboard : ASUS P10S-I (Mini-ITX form-factor)
-RAM : 2 x 16 GB DDR4-2400 MHz ECC Crucial very low profile
-SSD 1 : 240 GB Sandisk Ultra II
-SSD 2 : 240 GB Transcend 220S
-Case : Bitfenix Phenom ITX Black
-Power Supply : Seasonic 550W Platinum
+- CPU : Intel Xeon E3 1240v6 (4c/8t) @3,7/3,9 GHz
+- Motherboard : ASUS P10S-I (Mini-ITX form-factor)
+- RAM : 2 x 16 GB DDR4-2400 MHz ECC Crucial very low profile
+- SSD 1 : 240 GB Sandisk Ultra II
+- SSD 2 : 240 GB Transcend 220S
+- Case : Bitfenix Phenom ITX Black
+- Power Supply : Seasonic 550W Platinum
 
 All of these components fit in a small form-factor (ITX), while their
 performance is still impressive for a home user.
-The plus here is an IPMI interface allowing to take control of the server over
-the network.
+The plus here is an IPMI interface on the motherboard, allowing you to take
+control of the server over the network.
+All the containers are stored directly on the mirrored SSD's.
+ECC memory allow for more stable platform, even this this not really necessary
+at home.
+
+I recommend using at least a dual-core CPU with SMT / Hyperthreading or a quad-
+core without it.
+For the RAM my recommands are at least 8 GB because we are using zfs here and
+zfs is effective at the cost of high memory consumption.
 
 First steps
 ===========
@@ -44,6 +52,7 @@ Choose the desktop version because we need the live-CD.
 1. Boot the live-CD.
 
 2. Open a terminal and edit your source list `/etc/apt/sources.list.d/base.list`.
+
 Clear everything and add the following lines :
 ```
 deb http://deb.debian.org/debian stretch main contrib non-free
@@ -63,11 +72,13 @@ apt install openssh-server vim
 
 5. If you want to connect to your server as root, edit the file
 `/etc/ssh/sshd_config` and add the following line :
-    PermitRootLogin yes
+```
+PermitRootLogin yes
+```
 
 6. Restart the ssh daemon :
 ```bash
-    systemctl restart ssh.service
+systemctl restart ssh.service
 ```
 Now you can connect to your server via SSH.
 
@@ -82,13 +93,15 @@ modprobe zfs
 ```
 
 9. Identify your hard drives and store their path in variables :
-    ls -l /dev/disk/by-id/
+```bash
+ls -l /dev/disk/by-id/
+```
 For example mine are :
 ```
 /dev/disk/by-id/ata-SanDisk_Ultra_II_240GB_171028800778
 /dev/disk/by-id/ata-TS240GSSD220S_032272B0D88187210048
 ```
-So i use these commands :
+So I use these commands :
 ```bash
 FIRST_DISK='/dev/disk/by-id/ata-SanDisk_Ultra_II_240GB_171028800778'
 SECOND_DISK='/dev/disk/by-id/ata-TS240GSSD220S_032272B0D88187210048'
@@ -104,7 +117,9 @@ sgdisk -n1:0:0 -t1:BF01 $SECOND_DISK
 
 11. Configure the zfs pool :
 ```bash
-zpool create -f -o ashift=12 -O atime=off -O canmount=off -O compression=lz4 -O normalization=formD -O mountpoint=/ -R /mnt rpool mirror ${FIRST_DISK}-part1 ${SECOND_DISK}-part1
+zpool create -f -o ashift=12 -O atime=off -O canmount=off -O compression=lz4 \
+    -O normalization=formD -O mountpoint=/ -R /mnt rpool mirror \
+    ${FIRST_DISK}-part1 ${SECOND_DISK}-part1
 ```
 
 12. Create the zfs datasets :
