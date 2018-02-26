@@ -220,14 +220,6 @@
     group: root
     mode: 0644
 
-- name: Generate the "named.conf.local" file
-  template:
-    src: "{{ role_path }}/templates/main_named.conf.local.j2"
-    dest: /etc/bind/named.conf.local
-    owner: root
-    group: root
-    mode: 0644
-
 - name: Initialize dictionnary to store PTR zones
   set_fact:
     dns_master_ptr_zones: {}
@@ -253,9 +245,14 @@
   when:
     - 16 < (item.value | ipaddr('prefix'))
 
-- name: Print the PTR zones
-  debug:
-    var: dns_master_ptr_zones
+- name: Generate the "named.conf.local" file
+  template:
+    src: "{{ role_path }}/templates/main_named.conf.local.j2"
+    dest: /etc/bind/named.conf.local
+    owner: root
+    group: root
+    mode: 0644
+
 
 
 

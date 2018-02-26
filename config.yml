@@ -72,7 +72,7 @@ all_containers:
     # If set to True, will renew all the certificates files when playbook is executed.
     # If set to False, will create the certificates on the first execution,
     #   and will just use them for the next ones.
-    ansible_renew_all: False
+    ansible_renew_all: True
     # The network ansible uses to connect to the containers
     ansible_network: 'external'
     # The python path in containers for ansible

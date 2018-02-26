@@ -6,10 +6,11 @@ zone "{{ zone }}." IN {
     allow-transfer { !{ !dns_admin; any; }; key "{{ dns_tsig_key_name }}"; };
 };
 
-zone "{{ cidr_network | ipaddr('revdns') }}.in-addr.arpa" IN {
+zone "{{ dns_master_ptr_zones[zone] }}" IN {
     type master;
-    file "/var/lib/bind/db.{{ cidr_network | ipaddr('revdns') }}";
+    file "/var/lib/bind/db.{{ dns_master_ptr_zones[zone] | regex_replace('.in-addr.arpa.', '') }}";
     allow-update { !{ !dns_admin; any; }; key "{{ dns_tsig_key_name }}"; };
     allow-transfer { !{ !dns_admin; any; }; key "{{ dns_tsig_key_name }}"; };
 };
+
 {% endfor %}
