@@ -3,32 +3,36 @@
 Description
 ===========
 
-    At the time of cloud-based infrastructure, where your personal and private
+At the time of cloud-based infrastructure, where your personal and private
 data could be compromised, The MiniDataCenter Project is a solution allowing you
 to bring back your data at home. Moreover, it will let your discover all the
 mecanisms lying under all the internet services you are using everyday.
 
-    What your need is just a single physical computer, connected to the internet
+What your need is just a single physical computer, connected to the internet
 via your ISP router. This program will then deploy several preconfigured LXD
 containers, using Ansible, an automation tool, with the following roles :
 
-- [x] Certificate Authority (implemented)
-- [x] DNS Server (implemented)
-- [ ] DHCP Server (coming soon)
-- [ ] VPN Server (coming soon)
-- [ ] RVPRX (Reverse Proxy) Server (coming soon)
-- [ ] LDAP Server (coming soon)
-- [ ] LAM (LDAP Account Manager) Server (coming soon)
-- [ ] Cyrus Server (mail) (coming soon)
-- [ ] SMTP Relay Server (coming soon)
+Implemented :
+- [x] Certificate Authority
+- [x] DNS Server
+
+Coming soon :
+- [ ] DHCP Server
+- [ ] VPN Server
+- [ ] Reverse Proxy Server
+- [ ] LDAP Server
+- [ ] LAM (LDAP Account Manager) Server
+- [ ] Cyrus Server (mail)
+- [ ] SMTP Relay Server
 
 Prerequisites
 =============
 
-The host (physical computer) must :
+The host (physical computer) :
+__Must :__
 * have a full internet access and not be behind a proxy.
 
-The host (physical computer) should :
+__Should :__
 * have at least 8 GB memory and 4 CPU cores
 
 Quick Install Guide
@@ -38,24 +42,28 @@ Quick Install Guide
 [Host Install Guide](docs/host_install_guide.md)
 
 2. Clone this repository :
-
-    git clone https://github.com/agrimal/minidatacenter.git /opt/minidc
+```bash
+git clone https://github.com/agrimal/minidatacenter.git /opt/minidc
+```
 
 3. Bootstrap the MiniDataCenter :
-
+```bash
     /opt/minidc/scripts/bootstrap-minidc.sh
+```
 
 4. Modify the config.yml file accordingly to your needs
 
 5. Create the containers :
-
+```bash
     /opt/minidc/scripts/create-containers.py
+```
 
 6. Launch the Ansible playbook :
-
+```bash
     /opt/minidc/python-venv/bin/ansible-playbook \ 
         -i /opt/minidc/scripts/inventory.py \ 
         /opt/minidc/playbooks/setup-everything.yml
+```
 
 7. Enjoy !
 
