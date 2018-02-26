@@ -38,6 +38,7 @@
     path: /etc/default/bind9
     regexp: '^OPTIONS="-u bind"$'
     replace: 'OPTIONS="-u bind -4 -n 2"'
+  register: etc_default_bind9_task
 
 # localhost
 - name: Check if "{{ ansible_working_directory }}/{{ inventory_hostname }}/etc/bind" exists on localhost
@@ -129,9 +130,10 @@
 
 # Generate new TSIG files
 - name: Generate TSIG key "{{ dns_tsig_key_name }}"
-  shell: dnssec-keygen -a HMAC-SHA512 -b 512 -K /etc/bind -r /dev/urandom -n HOST "{{ dns_tsig_key_name }}"
-  args:
-    executable: /bin/bash
+  #shell: dnssec-keygen -a HMAC-SHA512 -b 512 -K /etc/bind -r /dev/urandom -n HOST "{{ dns_tsig_key_name }}"
+  command: dnssec-keygen -a HMAC-SHA512 -b 512 -K /etc/bind -r /dev/urandom -n HOST "{{ dns_tsig_key_name }}"
+  #args:
+  #  executable: /bin/bash
   when:
     - ansible_renew_all
   register: tsig_key_generate_task
@@ -176,8 +178,6 @@
     - not ansible_renew_all
   register: local_tsig_key_private_file_unchanged
 
-# Here the (?s) allow the '.' to match any character, including '\n' which is not the default behavior.
-# See https://docs.python.org/3/library/re.html (?imsx-imsx:...) for more information
 - name: Extract key name and secret from ".key" file
   set_fact:
     dns_tsig_key_secret: "{{ item.content | b64decode | regex_replace('^.* IN KEY [0-9]{3} [0-9] [0-9]{3} (.*) (.*)\n$', '\\1\\2') }}"
@@ -201,7 +201,7 @@
     src: "{{ role_path }}/templates/main_tsig_key.j2"
     dest: /etc/bind/named.conf.tsigkeys
     owner: root
-    group: root
+    group: bind
     mode: 0644
 
 - name: Generate the "named.conf.options" file
@@ -209,16 +209,18 @@
     src: "{{ role_path }}/templates/main_named.conf.options.j2"
     dest: /etc/bind/named.conf.options
     owner: root
-    group: root
+    group: bind
     mode: 0644
+  register: etc_bind_named_conf_options_task
 
 - name: Copy the "named.conf.logs" file
   copy:
     src: "{{ role_path }}/files/main_named.conf.logs"
     dest: /etc/bind/named.conf.logs
     owner: root
-    group: root
+    group: bind
     mode: 0644
+  register: etc_bind_named_conf_logs_task
 
 - name: Initialize dictionnary to store PTR zones
   set_fact:
@@ -250,173 +252,48 @@
     src: "{{ role_path }}/templates/main_named.conf.local.j2"
     dest: /etc/bind/named.conf.local
     owner: root
-    group: root
+    group: bind
     mode: 0644
+  register: etc_bind_named_conf_local_task
 
+- name: Copy the "named.conf" file
+  copy:
+    src: "{{ role_path }}/files/main_named.conf"
+    dest: /etc/bind/named.conf
+    owner: root
+    group: bind
+    mode: 0644
+  register: etc_bind_named_conf_task
 
+- name: Create dynamic forward zone files
+  template:
+    src: "{{ role_path }}/templates/main_db_forward.j2"
+    dest: "/var/lib/bind/db.{{ item.key }}"
+  with_dict: "{{ dns_master_zones }}"
+  register: dynamic_forward_zones_task
 
+- name: Create dynamic reverse zone files
+  template:
+    src: "{{ role_path }}/templates/main_db_reverse.j2"
+    dest: "/var/lib/bind/db.{{ item.value | regex_replace('.in-addr.arpa.', '') }}"
+  with_dict: "{{ dns_master_ptr_zones }}"
+  register: dynamic_reverse_zones_task
 
-#    easy_rsa_source_dir: "/usr/share/easy-rsa"
-#
-#
-#- name: Create the directory "{{ ca_easy_rsa_install_dir }}" 
-#  file:
-#    path: "{{ ca_easy_rsa_install_dir }}"
-#    state: directory
-#    mode: 0750
-#
-## Get a recursive list of all files in source_dir
-#- name: List files and directories in "{{ easy_rsa_source_dir }}"
-#  find:
-#    path: "{{ easy_rsa_source_dir }}"
-#    recurse: yes
-#    file_type: any
-#  register: find_result_easy_rsa_source_dir
-#
-## Copy directories but not files
-#- name: Create in "{{ ca_easy_rsa_install_dir }}" the directories found in "{{ easy_rsa_source_dir }}" 
-#  file:
-#    path: "{{ item.path | regex_replace(easy_rsa_source_dir, ca_easy_rsa_install_dir) }}"
-#    state: directory
-#    mode: "{{ item.mode }}"
-#  with_items:
-#    - "{{ find_result_easy_rsa_source_dir.files }}"
-#  when:
-#    - item.isdir
-#
-## Copy all files except directories and 'vars'
-#- name: Copy the files (except 'vars') from "{{ easy_rsa_source_dir }}" to "{{ ca_easy_rsa_install_dir }}"
-#  copy:
-#    src: "{{ item.path }}"
-#    dest: "{{ item.path | regex_replace(easy_rsa_source_dir, ca_easy_rsa_install_dir) }}"
-#    remote_src: yes
-#    mode: "{{ item.mode }}"
-#  with_items:
-#    - "{{ find_result_easy_rsa_source_dir.files }}"
-#  when:
-#    - (item.isdir == False) and (item.path != (easy_rsa_source_dir + "/vars"))
-#
-#- name: Create the directory "keys" in "{{ ca_easy_rsa_install_dir }}"
-#  file:
-#    path: "{{ ca_easy_rsa_install_dir }}/keys"
-#    state: directory
-#    mode: 0700
-#
+- include_tasks: logrotate.yml
 
-## Delete every key and certificate if ansible_renew_all is set to True in config.yml
-#- name: Clean all previously generated keys and certificates
-#  shell: . vars && ./clean-all
-#  args:
-#    chdir: "{{ ca_easy_rsa_install_dir }}"
-#    executable: /bin/bash
-#  when:
-#    - ansible_renew_all
-#
-## Get a recursive list of all files in source_dir
-#- name: List files in "{{ ca_easy_rsa_install_dir }}/keys"
-#  find:
-#    path: "{{ ca_easy_rsa_install_dir }}/keys"
-#    recurse: no
-#    file_type: file
-#  register: find_result_ca_easy_rsa_install_dir_keys
-#
-## Create the list of files present in ca_easy_rsa_install_dir/keys
-#- set_fact:
-#    files_in_keys_directory: "{{ find_result_ca_easy_rsa_install_dir_keys.files | map(attribute='path') | list }}"
-#
-## Only generate if ca.crt or ca.key are not in ca_easy_rsa_install_dir/keys
-#- name: Generate the CA private key and certificate
-#  shell: source vars && ./clean-all && ./pkitool --initca
-#  args:
-#    chdir: "{{ ca_easy_rsa_install_dir }}"
-#    executable: /bin/bash
-#  when:
-#    - (ca_easy_rsa_install_dir + "/keys/ca.crt") not in files_in_keys_directory or
-#      (ca_easy_rsa_install_dir + "/keys/ca.key") not in files_in_keys_directory or
-#      (ca_easy_rsa_install_dir + "/keys/index.txt") not in files_in_keys_directory
-#
-## Only generate if dh.pem is not in ca_easy_rsa_install_dir/keys
-#- name: Generate the Diffie-Hellman key
-#  shell: source vars && ./build-dh
-#  args:
-#    chdir: "{{ ca_easy_rsa_install_dir }}"
-#    executable: /bin/bash
-#  when:
-#    - (ca_easy_rsa_install_dir + "/keys/dh" + ca_key_size + ".pem") not in files_in_keys_directory
-#  register: diffie_hellman_generation
-## The following doesn't work as of ansible 2.4.3, have to have for 2.4.4 where bug is fixed.
-##  async: 300
-##  poll: 5
-#
-## Slurp index.txt
-#- name: Read "{{ ca_easy_rsa_install_dir }}/keys/index.txt"
-#  slurp:
-#    src: "{{ ca_easy_rsa_install_dir }}/keys/index.txt"
-#  register: index_txt
-#
-#- name: Generate the list of the certificates still valid for the ca
-#  set_fact:
-#    valid_certificates_for_ca: "{{ index_txt['content'] | b64decode | regex_findall('V\t.*\n') | map('regex_replace', '^V.*/CN=(.*)/name=.*\n$', '\\1') | list }}"
-#    revoked_certificates_for_ca: "{{ index_txt['content'] | b64decode | regex_findall('R\t.*\n') | map('regex_replace', '^R.*/CN=(.*)/name=.*\n$', '\\1') | list }}"
-#
-## Only generate if server_name.crt or server_name.key are not in ca_easy_rsa_install_dir/keys or if the certificate is revoked
-#- name: Generate the servers private keys and certificates
-#  shell: . vars && ./pkitool --server "{{ item }}"
-#  args:
-#    chdir: "{{ ca_easy_rsa_install_dir }}"
-#    executable: /bin/bash
-#  with_items:
-#    - "{{ ca_certificates.servers }}"
-#  when:
-#    - (ca_easy_rsa_install_dir + "/keys/" + item + ".key") not in files_in_keys_directory or
-#      (ca_easy_rsa_install_dir + "/keys/" + item + ".crt") not in files_in_keys_directory or
-#      item not in valid_certificates_for_ca
-#
-## Only generate if client_name.crt or client_name.key are not in ca_easy_rsa_install_dir/keys or if the certificate is revoked
-#- name: Generate the clients private keys and certificates
-#  shell: source vars && ./pkitool "{{ item }}"
-#  args:
-#    chdir: "{{ ca_easy_rsa_install_dir }}"
-#    executable: /bin/bash
-#  with_items:
-#    - "{{ ca_certificates.clients }}"
-#  when:
-#    - (ca_easy_rsa_install_dir + "/keys/" + item + ".key") not in files_in_keys_directory or
-#      (ca_easy_rsa_install_dir + "/keys/" + item + ".crt") not in files_in_keys_directory or
-#      item not in valid_certificates_for_ca
-#
-## Revoke certificates not in the allowed lists
-#- name: Revoke the certificates removed from config file
-#  shell: source vars && ./revoke-full "{{ item }}"
-#  args:
-#    chdir: "{{ ca_easy_rsa_install_dir }}"
-#    executable: /bin/bash
-#  with_items:
-#    - "{{ valid_certificates_for_ca }}"
-#  when:
-#    - item not in ca_certificates.servers
-#    - item not in ca_certificates.clients
-#  register: revoke_result
-#  failed_when: revoke_result.rc != 2
-#
-## The following doesn't work as of ansible 2.4.3, have to have for 2.4.4 where bug is fixed.
-##- name: Waiting for Diffie-Hellman key to be generated
-##  async_status:
-##    jid: "{{ diffie_hellman_generation.ansible_job_id }}"
-##  register: job_result
-##  until: job_result.finished
-##  retries: 30
-#
-## Copy all keys and certificates on localhost
-#- name: Copy keys and certificates on localhost in "{{ ansible_working_directory }}"
-#  fetch:
-#    src: "{{ ca_easy_rsa_install_dir }}/keys/{{ item }}"
-#    dest: "{{ ansible_working_directory }}"
-#  with_items:
-#    - "{{ ca_certificates.clients | map('regex_replace', '^(.*)$', '\\1.crt') | list }}"
-#    - "{{ ca_certificates.clients | map('regex_replace', '^(.*)$', '\\1.key') | list }}"
-#    - "{{ ca_certificates.servers | map('regex_replace', '^(.*)$', '\\1.crt') | list }}"
-#    - "{{ ca_certificates.servers | map('regex_replace', '^(.*)$', '\\1.key') | list }}"
-#    - "ca.crt"
-#    - "ca.key"
-#    - "dh{{ ca_key_size }}.pem"
+- name: Verify bind configuration
+  command: named-checkconf -z
+  changed_when: False
+
+- name: Reload bind
+  systemd:
+    name: bind9
+    state: reloaded
+  when:
+    - ansible_renew_all or
+      etc_bind_named_conf_options_task.changed or
+      etc_bind_named_conf_logs_task.changed or
+      etc_bind_named_conf_local_task.changed or
+      etc_bind_named_conf_task.changed or
+      dynamic_forward_zones_task.changed or
+      dynamic_reverse_zones_task.changed

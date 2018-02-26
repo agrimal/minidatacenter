@@ -1,12 +1,13 @@
 %%SHEBANG%%
 #
-# Copyright (c) 2018 Aurélien Grimal
+# MiniDataCenter Project
+# Copyright 2018 Aurélien Grimal
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+# http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,8 +18,6 @@
 try:
     import yaml, os, shlex, re, sys
     from pylxd import Client
-    #import time
-    #from collections import defaultdict
     from jinja2 import Environment, FileSystemLoader
 except ImportError as e:
     raise ImportError('Error importing modules...')
@@ -39,7 +38,7 @@ env = Environment(loader=FileSystemLoader(os.path.join(path, 'templates')))
 client = Client()
 
 #
-# Create the list of containers to launch with parameters filled in config.yml file
+# Create the list of containers to launch with parameters filled in config.yml file.
 # We get every section of config.yml in a separate dictionary
 #
 with open(path + '/../config.yml', 'r') as stream:

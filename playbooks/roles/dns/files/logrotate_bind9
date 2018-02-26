@@ -1,0 +1,11 @@
+/var/log/bind/*.log {
+    daily
+    rotate 30
+    missingok
+    ifempty
+    postrotate
+        if systemctl is-active bind9.service > /dev/null 2>&1 ; then
+            systemctl reload bind9.service > /dev/null 2>&1
+        fi
+    endscript
+}

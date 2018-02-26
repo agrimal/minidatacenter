@@ -21,6 +21,8 @@ DIR="$(cd "$(dirname "$0")/.."; pwd)"
 # Packages version
 ANSIBLE_VERSION="2.4.3.0"
 PYLXD_VERSION="2.2.4"
+NETADDR_VERSION="0.7.19"
+DNSPYTHON_VERSION="1.15.0"
 
 # Install package virtualenv if not already installed
 dpkg-query -W -f='${Status}' virtualenv | grep 'ok installed' > /dev/null 2>&1
@@ -37,8 +39,12 @@ virtualenv -p python3 --clear ${DIR}/python-venv
 # Enter the virtualenv
 source ${DIR}/python-venv/bin/activate
 
-# Install needed packages
-pip install ansible==$ANSIBLE_VERSION pylxd==$PYLXD_VERSION netaddr
+# Install required python packages
+pip install \ 
+    ansible==$ANSIBLE_VERSION \
+    pylxd==$PYLXD_VERSION \ 
+    netaddr==$NETADDRVERSION \
+    dnspython==$DNSPYTHON_VERSION
 
 # Put correct shebang in python scripts
 sed -i "s,%%SHEBANG%%,#!${DIR}/python-venv/bin/python," ${DIR}/scripts/create-containers.py
