@@ -228,19 +228,34 @@
     group: root
     mode: 0644
 
-- debug:
-    msg: "{{ dns_master_zones | type_debug }}    {{ dns_master_zones }}"
-
-- set_fact:
-    test: {}
-
-- name: Calculate the PTR zones
+- name: Initialize dictionnary to store PTR zones
   set_fact:
-    ptr: '{{ test | combine( { item.key: item.value } ) }}'
-  with_dict: "{{ dns_master_zones }}"
+    dns_master_ptr_zones: {}
 
-- debug:
-    var: ptr
+- name: Calculate the PTR zones when network mask is greater than 1 and lesser than 9
+  set_fact:
+    dns_master_ptr_zones: "{{ dns_master_ptr_zones | combine( { item.key: item.value | ipaddr('revdns') | regex_replace('^[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.', '') } ) }}"
+  with_dict: "{{ dns_master_zones }}"
+  when:
+    - 1 < (item.value | ipaddr('prefix')) < 9
+
+- name: Calculate the PTR zones when network mask is greater than 8 and lesser than 17
+  set_fact:
+    dns_master_ptr_zones: "{{ dns_master_ptr_zones | combine( { item.key: item.value | ipaddr('revdns') | regex_replace('^[0-9]{1,3}\\.[0-9]{1,3}\\.', '') } ) }}"
+  with_dict: "{{ dns_master_zones }}"
+  when:
+    - 8 < (item.value | ipaddr('prefix')) < 17
+
+- name: Calculate the PTR zones when network mask is greater than 16
+  set_fact:
+    dns_master_ptr_zones: "{{ dns_master_ptr_zones | combine( { item.key: item.value | ipaddr('revdns') | regex_replace('^[0-9]{1,3}\\.', '') } ) }}"
+  with_dict: "{{ dns_master_zones }}"
+  when:
+    - 16 < (item.value | ipaddr('prefix'))
+
+- name: Print the PTR zones
+  debug:
+    var: dns_master_ptr_zones
 
 
 
