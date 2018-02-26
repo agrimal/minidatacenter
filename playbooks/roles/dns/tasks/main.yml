@@ -84,9 +84,6 @@
     - not ansible_renew_all # This task is useless if we want to clean everything
     - local_etc_bind.stat.exists
 
-- debug:
-    var: remote_etc_bind
-
 # remote
 - name: Generate the list of ".key" and ".private" files in "/etc/bind"
   set_fact:
@@ -199,7 +196,7 @@
   when:
     - ansible_renew_all
 
-- name: Convert TSIG key for being readable by bind and isc-dhcpd
+- name: Convert TSIG key for being readable by bind and push it into "/etc/bind/named.conf.tsigkeys"
   template:
     src: "{{ role_path }}/templates/main_tsig_key.j2"
     dest: /etc/bind/named.conf.tsigkeys
@@ -207,8 +204,43 @@
     group: root
     mode: 0644
 
-  
+- name: Generate the "named.conf.options" file
+  template:
+    src: "{{ role_path }}/templates/main_named.conf.options.j2"
+    dest: /etc/bind/named.conf.options
+    owner: root
+    group: root
+    mode: 0644
 
+- name: Copy the "named.conf.logs" file
+  copy:
+    src: "{{ role_path }}/files/main_named.conf.logs"
+    dest: /etc/bind/named.conf.logs
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Generate the "named.conf.local" file
+  template:
+    src: "{{ role_path }}/templates/main_named.conf.local.j2"
+    dest: /etc/bind/named.conf.local
+    owner: root
+    group: root
+    mode: 0644
+
+- debug:
+    msg: "{{ dns_master_zones | type_debug }}    {{ dns_master_zones }}"
+
+- set_fact:
+    test: {}
+
+- name: Calculate the PTR zones
+  set_fact:
+    ptr: '{{ test | combine( { item.key: item.value } ) }}'
+  with_dict: "{{ dns_master_zones }}"
+
+- debug:
+    var: ptr
 
 
 

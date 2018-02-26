@@ -1,0 +1,132 @@
+acl clients {
+{% for client in dns_cidr_clients %}
+    {% for comment, ip in client.items() -%}
+    {{ ip }}; # {{ comment }}
+{% endfor -%}
+{% endfor %}
+};
+
+acl dns_admin {
+    localhost;
+    127.0.0.1;
+{% for admin in dns_cidr_authorized_admin_ip %}
+    {% for comment, ip in admin.items() -%}
+    {{ ip }}; # {{ comment }}
+{% endfor -%}
+{% endfor %}
+};
+
+options {
+    # directory "path_name";
+    # directory is a quoted string defining the absolute path for the server
+    # e.g. "/var/named". All subsequent relative paths use this base directory.
+    # If no directory options is specified the directory from which BIND was
+    # loaded is used. This option may only be specified in a 'global' options
+    # statement.
+    directory "/var/cache/bind";
+
+    # dnssec-enable ( yes | no );
+    # dnssec-enable indicates that a secure DNS service is being used which may
+    # be one, or more, of TSIG (for securing zone transfers or DDNS updates),
+    # SIG(0) (for securing DDNS updates) or DNSSEC. Since BIND9.5 the default
+    # value is dnssec-enable yes;. This statement may be used in a view or
+    # global options clause.
+    dnssec-enable no;
+
+    # dnssec-validation ( yes | no | auto );
+    # dnssec-validation indicates that a resolver (a caching or caching-only
+    # name server) will attempt to validate replies from DNSSEC enabled (signed)
+    # zones. To perform this task the server also needs either a valid trusted-
+    # keys clause (containing one or more trusted-anchors or a managed-keys
+    # clause. Since 9.5 the default value is dnssec-validation yes;. This
+    # statement may be used in a view or global options clause.
+    dnssec-validation no;
+
+    dnssec-lookaside no;
+
+    # auth-nxdomain ( yes | no );
+    # If auth-nxdomain is 'yes' allows the server to answer authoritatively (the
+    # AA bit is set) when returning NXDOMAIN (domain does not exist) answers, if
+    # 'no' (the default) the server will not answer authoritatively. NOTE: This
+    # changes the previous BIND 8 default setting. This statement may be used in
+    # a view or a global options clause.
+    auth-nxdomain no; # conform to RFC1035
+
+    # listen-on-v6 [ port ip_port ] { address_match_list };
+    # listen-on-v6 turns on BIND to listen for IPv6 queries. If this statement
+    # is not present and the server supports IPv6 (only or in dual stack mode)
+    # the server will listen for IPv6 on port 53 on all server interfaces. If
+    # the OS supports RFC 3493 and RFC 3542 compliant IPv6 sockets and the
+    # address_match_list uses the special any name then a single listen is
+    # issued to the wildcard address. If the OS does not support this feature a
+    # socket is opened for every required address and port. The port default is
+    # 53. Multiple listen-on-v6 statements are allowed. This statement may only
+    # be used in a global options clause. Do not try to start bind with the -4
+    # argument when you use this statement.
+    listen-on-v6 { none; };
+
+    # recursion ( yes | no );
+    # If recursion is set to 'yes' (the default) the server will always provide
+    # recursive query behaviour if requested by the client (resolver). If set to
+    # 'no' the server will only provide iterative query behaviour - normally
+    # resulting in a referral. If the answer to the query already exists in the
+    # cache it will be returned irrespective of the value of this statement.
+    # This statement essentially controls caching behaviour in the server. The
+    # allow-recursion statement and the view clauses can provide fine-grained
+    # control. This statement may be used in a view or a global options clause.
+    recursion yes;
+
+    # allow-recursion { address_match_list };
+    # This statement is only relevant if recursion yes; is present or defaulted.
+    # allow-recursion defines a address_match_list of IP address(es) which are
+    # allowed to issue recursive queries to the server. When allow-recursion is
+    # present allow-query-cache defaults to the same values. If allow-recursion
+    # is NOT present the allow-query-cache default is assumed (localnets,
+    # localhost only). Meaning that only localhost (the server's host) and hosts
+    # connected to the local LAN (localnets) are permitted to issue recursive
+    # queries.
+    # This statement may be used in a view or a global options clause.
+    allow-recursion {
+        clients;
+        dns_admin;
+    };
+
+    # allow-query { address_match_list };
+    # allow-query defines an match list of IP address(es) which are allowed to
+    # issue queries to the server. If not specified all hosts are allowed to
+    # make queries (defaults to allow-query {any;};).
+    allow-query {
+        clients;
+        dns_admin;
+    };
+
+    # forward ( only | first );
+    # forward is only relevant in conjunction with a valid forwarders statement.
+    # If set to 'only' the server will only forward queries, if set to 'first'
+    # (default) it will send the queries to the forwarder and if not answered
+    # will attempt to answer the query. This statement may be used in a zone,
+    # view or a global options clause.
+    #forward first; 
+
+    # forwarders { ip_addr [port ip_port] ; [ ip_addr [port ip_port] ; ... ] };
+    # forwarders defines a list of IP address(es) (and optional port numbers)
+    # to which queries will be forwarded. Only relevant when used with the
+    # related forward statement. This statement may be used in a zone, view or a
+    # global options clause.
+    #forwarders {
+    #    208.67.222.222; # OpenDNS
+    #    9.9.9.9; # Quad9
+    #};
+
+    
+    # max-cache-size size_in_bytes;
+    # max-cache-size defines the maximum amount of memory to use for the
+    # server's cache, in bytes (case insensitive shortforms of k or m are
+    # allowed). When the amount of data in the cache reaches this limit, the
+    # server will cause records to expire prematurely so that the limit is not
+    # exceeded. In a server with multiple views, the limit applies separately to
+    # the cache of each view. The default is unlimited, meaning that records are
+    # purged from the cache only when their TTLs expire. This statement may be
+    # used in view or a global options clause.
+    max-cache-size 50m;
+};

@@ -1,0 +1,15 @@
+{% for zone, cidr_network in dns_master_zones.items() %}
+zone "{{ zone }}." IN {
+    type master;
+    file "/var/lib/bind/db.{{ zone }}";
+    allow-update { !{ !dns_admin; any; }; key "{{ dns_tsig_key_name }}"; };
+    allow-transfer { !{ !dns_admin; any; }; key "{{ dns_tsig_key_name }}"; };
+};
+
+zone "{{ cidr_network | ipaddr('revdns') }}.in-addr.arpa" IN {
+    type master;
+    file "/var/lib/bind/db.{{ cidr_network | ipaddr('revdns') }}";
+    allow-update { !{ !dns_admin; any; }; key "{{ dns_tsig_key_name }}"; };
+    allow-transfer { !{ !dns_admin; any; }; key "{{ dns_tsig_key_name }}"; };
+};
+{% endfor %}
