@@ -33,6 +33,14 @@
     group: root
     mode: 0644
 
+- name: Verify "/etc/bind" directory
+  file:
+    path: /etc/bind
+    state: directory
+    mode: 0755
+    owner: bind
+    group: root
+
 - name: Modify /etc/default/bind9
   replace:
     path: /etc/default/bind9
@@ -40,18 +48,40 @@
     replace: 'OPTIONS="-u bind -4 -n 2"'
   register: etc_default_bind9_task
 
+# need dns_cidr_clients, dns_cidr_authorized_admin_ip, 
+- name: Generate the "/etc/bind/named.conf.options" file
+  template:
+    src: "{{ role_path }}/templates/main_named.conf.options.j2"
+    dest: /etc/bind/named.conf.options
+    owner: root
+    group: bind
+    mode: 0644
+  register: etc_bind_named_conf_options_task
+
+- name: Copy the "/etc/bind/named.conf.logs" file
+  copy:
+    src: "{{ role_path }}/files/main_named.conf.logs"
+    dest: /etc/bind/named.conf.logs
+    owner: root
+    group: bind
+    mode: 0644
+  register: etc_bind_named_conf_logs_task
+
+- name: Copy the "named.conf" file
+  copy:
+    src: "{{ role_path }}/files/main_named.conf"
+    dest: /etc/bind/named.conf
+    owner: root
+    group: bind
+    mode: 0644
+  register: etc_bind_named_conf_task
+
 # localhost
 - name: Check if "{{ ansible_working_directory }}/{{ inventory_hostname }}/etc/bind" exists on localhost
   local_action:
     module: stat
     path: "{{ ansible_working_directory }}/{{ inventory_hostname }}/etc/bind"
   register: local_etc_bind
-
-# remote
-- name: Check if "/etc/bind" exists
-  stat:
-    path: /etc/bind
-  register: remote_etc_bind
 
 # localhost
 - name: Find ".key" and ".private" files in "{{ ansible_working_directory }}/{{ inventory_hostname }}/etc/bind" on localhost
@@ -62,19 +92,16 @@
     patterns: '^K.*\.(key|private)$'
     recurse: no
   when:
-    - not ansible_renew_all # This task is useless if we want to clean everything
+    - not ansible_renew_all 
     - local_etc_bind.stat.exists
   register: local_etc_bind_find_result
 
-# remote
 - name: Find ".key" and ".private" files in "/etc/bind"
   find:
     path: /etc/bind
     use_regex: yes
     patterns: '^K.*\.(key|private)$'
     recurse: no
-  when:
-    - remote_etc_bind.stat.exists
   register: remote_etc_bind_find_result
 
 # localhost
@@ -82,16 +109,12 @@
   set_fact:
     local_tsig_key_files: "{{ local_etc_bind_find_result.files | map(attribute='path') | list }}"
   when:
-    - not ansible_renew_all # This task is useless if we want to clean everything
+    - not ansible_renew_all
     - local_etc_bind.stat.exists
 
-# remote
 - name: Generate the list of ".key" and ".private" files in "/etc/bind"
   set_fact:
     remote_tsig_key_files: "{{ remote_etc_bind_find_result.files | map(attribute='path') | list }}"
-  when:
-#    - not ansible_renew_all # This task is useless if we want to clean everything
-    - remote_etc_bind.stat.exists
 
 - name: Decide wether all TSIG files should be deleted or not
   set_fact:
@@ -117,7 +140,6 @@
     - ansible_renew_all
   register: local_etc_bind_delete_task
 
-# remote
 - name: Delete ".key" and ".private" files in "/etc/bind"
   file:
     state: absent
@@ -130,15 +152,12 @@
 
 # Generate new TSIG files
 - name: Generate TSIG key "{{ dns_tsig_key_name }}"
-  #shell: dnssec-keygen -a HMAC-SHA512 -b 512 -K /etc/bind -r /dev/urandom -n HOST "{{ dns_tsig_key_name }}"
   command: dnssec-keygen -a HMAC-SHA512 -b 512 -K /etc/bind -r /dev/urandom -n HOST "{{ dns_tsig_key_name }}"
-  #args:
-  #  executable: /bin/bash
   when:
     - ansible_renew_all
   register: tsig_key_generate_task
 
-# Fetch them is new
+# Fetch them if they are new
 - name: Fetch the newly TSIG key files from /etc/bind to "{{ ansible_working_directory }}/{{ inventory_hostname }}/etc/bind"
   fetch:
     src: "/etc/bind/{{ item }}"
@@ -160,7 +179,8 @@
     - remote_tsig_key_files is defined
     - not ansible_renew_all
 
-- name: Read ".key" file when it was generated
+# localhost
+- name: Read ".key" file if it was renewed
   local_action:
     module: slurp
     path: "{{ ansible_working_directory }}/{{ inventory_hostname }}/etc/bind/{{ tsig_key_generate_task.stdout }}.key"
@@ -168,7 +188,7 @@
     - ansible_renew_all
   register: local_tsig_key_private_file_changed
 
-- name: Read ".key" file when it was not changed
+- name: Read ".key" file if it was left unchanged
   local_action:
     module: slurp
     path: "{{ ansible_working_directory }}/{{ inventory_hostname }}{{ item }}"
@@ -178,7 +198,7 @@
     - not ansible_renew_all
   register: local_tsig_key_private_file_unchanged
 
-- name: Extract key name and secret from ".key" file
+- name: Extract key name and secret from ".key" file if it was left unchanged
   set_fact:
     dns_tsig_key_secret: "{{ item.content | b64decode | regex_replace('^.* IN KEY [0-9]{3} [0-9] [0-9]{3} (.*) (.*)\n$', '\\1\\2') }}"
     dns_tsig_key_name: "{{ item.content | b64decode | regex_replace('^(.*)\\. IN KEY.*\n$', '\\1') }}"
@@ -187,7 +207,7 @@
   when:
     - not ansible_renew_all
 
-- name: Extract key name and secret from ".key" file when it was generated
+- name: Extract key name and secret from ".key" file when it was renewed
   set_fact:
     dns_tsig_key_secret: "{{ item.content | b64decode | regex_replace('^.* IN KEY [0-9]{3} [0-9] [0-9]{3} (.*) (.*)\n$', '\\1\\2') }}"
     dns_tsig_key_name: "{{ item.content | b64decode | regex_replace('^(.*)\\. IN KEY.*\n$', '\\1') }}"
@@ -196,6 +216,7 @@
   when:
     - ansible_renew_all
 
+# need dns_tsig_key_name, dns_tsig_key_algorithm and dns_tsig_key_secret
 - name: Convert TSIG key for being readable by bind and push it into "/etc/bind/named.conf.tsigkeys"
   template:
     src: "{{ role_path }}/templates/main_tsig_key.j2"
@@ -204,25 +225,7 @@
     group: bind
     mode: 0644
 
-- name: Generate the "named.conf.options" file
-  template:
-    src: "{{ role_path }}/templates/main_named.conf.options.j2"
-    dest: /etc/bind/named.conf.options
-    owner: root
-    group: bind
-    mode: 0644
-  register: etc_bind_named_conf_options_task
-
-- name: Copy the "named.conf.logs" file
-  copy:
-    src: "{{ role_path }}/files/main_named.conf.logs"
-    dest: /etc/bind/named.conf.logs
-    owner: root
-    group: bind
-    mode: 0644
-  register: etc_bind_named_conf_logs_task
-
-- name: Initialize dictionnary to store PTR zones
+- name: Initialize a dictionnary to store PTR zones
   set_fact:
     dns_master_ptr_zones: {}
 
@@ -247,7 +250,8 @@
   when:
     - 16 < (item.value | ipaddr('prefix'))
 
-- name: Generate the "named.conf.local" file
+# need dns_master_zones, dns_master_ptr_zones and dns_tsig_key_name
+- name: Generate the "/etc/bind/named.conf.local" file
   template:
     src: "{{ role_path }}/templates/main_named.conf.local.j2"
     dest: /etc/bind/named.conf.local
@@ -255,15 +259,6 @@
     group: bind
     mode: 0644
   register: etc_bind_named_conf_local_task
-
-- name: Copy the "named.conf" file
-  copy:
-    src: "{{ role_path }}/files/main_named.conf"
-    dest: /etc/bind/named.conf
-    owner: root
-    group: bind
-    mode: 0644
-  register: etc_bind_named_conf_task
 
 - name: Create dynamic forward zone files
   template:
@@ -309,12 +304,12 @@
   with_dict: "{{ dns_master_zones }}"
 
 - debug:
-    msg: "zone = {{ reversed_forward_dict[ item.1 | ipaddr('network/prefix') ] }}"
+    msg: "item.0 : {{ item.0 }} - item.1 : {{ item.1 }} - item.0.name : {{ item.0.name }} - dns_master_ptr_zones {{ dns_master_ptr_zones }}"
   with_subelements:
     - "{{ all_hosts_ips }}"
     - "ip"
 
-- name: Fill the DNS server with records
+- name: Fill the forward zones with records
   nsupdate:
     key_name: "{{ dns_tsig_key_name }}"
     key_secret: "{{ dns_tsig_key_secret }}"
@@ -327,4 +322,17 @@
     - "{{ all_hosts_ips }}"
     - "ip"
 
-
+- name: Fill the reverse zones with records
+  nsupdate:
+    key_name: "{{ dns_tsig_key_name }}"
+    key_secret: "{{ dns_tsig_key_secret }}"
+    key_algorithm: "{{ dns_tsig_key_algorithm | lower }}"
+    server: "{{ ansible_host }}"
+    zone: "{{ dns_master_ptr_zones[reversed_forward_dict[ item.1 | ipaddr('network/prefix') ]] }}"
+    record: "{{ item.1 | ipaddr('revdns') }}"
+    value: "{{ item.0.name }}.{{ reversed_forward_dict[ item.1 | ipaddr('network/prefix') ] }}."
+    type: "PTR"
+  with_subelements:
+    - "{{ all_hosts_ips }}"
+    - "ip"
+    
