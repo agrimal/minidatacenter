@@ -44,6 +44,17 @@ with open(path + '/../config.yml', 'r') as stream:
         for variable, value in config['all_containers'].items():
             inventory['all']['vars'][variable] = value
 
+        inventory['all']['vars']['all_hosts_ips'] = []
+        for group in config['containers']:
+            for container in config['containers'][group]:
+                container_param = { 'name' : container }
+                container_ips = []
+                for network, container_ip in config['containers'][group][container].items():
+                    for net in config['networks']:
+                        if net['name'] == network:
+                            container_ips.append( container_ip + re.sub('^.*(/.*)$', '\\1', net['cidr_ip']) )
+                container_param.update( { 'ip' : container_ips } )
+                inventory['all']['vars']['all_hosts_ips'].append( container_param )  
         # [containers]
         # For each container group
         for container_group, container_dict in config['containers'].items():
