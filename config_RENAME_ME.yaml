@@ -12,47 +12,42 @@ networks:
     - name: "external"
       host_bridge: "br-ext"
       container_interface: "ethext"
-      cidr_ip: 192.168.1.0/24
-      gateway: 192.168.1.1 # Put here the IP of your router to internet
+      cidr_ip: 192.168.0.0/24
+      gateway: 192.168.0.1 # Put here the IP of your router to internet
       gateway_is_default_route: True
       dns_ip:
-          - 192.168.1.1 # I recommend to put here the IP of your router in case of the DNS container fails
+          - 192.168.0.1 # I recommend to put here the IP of your router in case of the DNS container fails
     - name: "internal"
       host_bridge: "br-int"
       container_interface: "ethint"
-      cidr_ip: 10.10.0.0/24
+      cidr_ip: 10.0.0.0/24
       gateway:
       gateway_is_default_route: False
       dns_ip:
-          - 10.10.0.31 # We use here the internal IP of the DNS container
+          - 10.0.0.2 # We use here the internal IP of the DNS container
 
 # containers
 # Hierarchical tree of groups, names and IP addresses for each network
 # The network names must match those declared in previous 'networks' section
 # For the moment, a container cannot have more than one IP per subnet
+# Do not rename the groups
 containers:
     dns_hosts:
-        ubudns02:
-            external: 192.168.1.231
-            internal: 10.10.0.31
+        ubudns01:
+            external: 192.168.0.2
+            internal: 10.0.0.2
     dhcp_hosts:
-        ubudhcp02:
-            external: 192.168.1.232
-            internal: 10.10.0.32
-    dhcd_hosts:
-        ubvdhcp07:
-            external: 192.168.1.157
-            internal: 10.10.0.109
+        ubudhcp01:
+            external: 192.168.0.3
+            internal: 10.0.0.3
     ca_hosts:
-        ubuca02:
-            external: 192.168.1.233
-            internal: 10.10.0.33
+        ubuca01:
+            external: 192.168.0.4
+            internal: 10.0.0.4
     ldap_hosts:
-        ubuldap02:
-            external: 192.168.1.26
-            internal: 10.10.0.49
-        ubuldap07:
-            external: 192.168.1.238
+        ubuldap01:
+            external: 192.168.0.5
+            internal: 10.0.0.5
 
 # containers_config
 # You can add here any compatible LXD parameter
@@ -108,55 +103,55 @@ services:
             # The name of the directory where the Certificate Authority
             #    certificate file is stored in the containers
             cert_dir: '/etc/ssl/certs'
-        ubuca02:    
-            organisation: 'Tech-Tips'
-            ou: 'tech-tips.fr'
+        ubuca01:    
+            organisation: 'MyOrganisation'
+            ou: 'my-domain.com'
             country: 'FR' # This one can only be the 2 letters code of your country
             province: 'Ile-de-France'
             city: 'Paris'
-            email: 'admin@tech-tips.fr'
+            email: 'admin@my-domain.com'
             easy_rsa_install_dir: '/etc/easy-rsa'
             key_size: '2048'
             ca_expire: '3650'
             key_expire: '3650'
             certificates:
                 servers:
-                    - 'vpn.tech-tips.fr'
-                    - 'ldap.tech-tips.home'
+                    - 'vpn.my-domain.com'
+                    - 'ldap.my-domain.home'
                 clients:
                     - 'client01'
+                    - 'client02'
                     - 'client03'
-                    - 'client04'
     # LDAP configuration
     ldap_config:
         vars:
-            url: 'ldap.tech-tips.home'
-            base_dn: 'dc=tech-tips,dc=fr'
-        ubuldap02:
-            toto: 'toto'
+            url: 'ldap.my-domain.home'
+            base_dn: 'dc=my-domain,dc=com'
+        ubuldap01:
+            test: 'test'
 
     # DNS configuration
     dns_config:
         vars:
             domains:
-                - 'tech-tips.fr'
-                - 'tech-tips.home'
+                - 'my-domain.com'
+                - 'my-domain.home'
             aliases:
-                ldap.tech-tips.home: 'ubuldap02.tech-tips.home'
+                ldap.my-domain.home: 'ubuldap01.my-domain.home'
             tsig_key_name: 'tsig-key'
             tsig_key_algorithm: 'HMAC-SHA512'
-        ubudns02:
+        ubudns01:
             # IP who can transfer and update the zones
             # The name will be added as comment in the config file
             cidr_authorized_admin_ip: 
-                - { 'DHCP container' : '10.10.0.32/32' }
+                - { 'DHCP container' : '10.0.0.3/32' }
             # IP who can just query the DNS
             # The name will be added as comment in the config file
             cidr_clients:
-                - { 'Clients' : '192.168.1.0/24' }
+                - { 'Clients' : '192.168.0.0/24' }
             # The zones this server is master
             # Form : { zone : subnet }
             # The PTR will be calculated from the subnet
             master_zones:
-                tech-tips.fr: '192.168.1.0/24'
-                tech-tips.home: '10.10.0.0/24'
+                my-domain.com: '192.168.0.0/24'
+                my-domain.home: '10.0.0.0/24'

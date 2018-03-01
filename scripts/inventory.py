@@ -112,7 +112,7 @@ with open(path + '/../config.yml', 'r') as stream:
                     print('Error in config.yml :\n' + container_name,
                           'is declared in [services]['+ service_tag + '_config]'
                           ' section but is not declared in [containers][' +
-                          service_tag + '_hosts] section.')
+                          service_tag + '_hosts] section.', file=sys.stderr)
                     sys.exit(1)
                 
         print(json.dumps(inventory, indent=4, sort_keys=True))

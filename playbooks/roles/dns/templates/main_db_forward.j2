@@ -1,15 +1,13 @@
 $ORIGIN .
-$TTL    86400                          ; 1 day
-{{ item.key }}    IN  SOA dns.{{ item.key }}. admin.{{ item.key }}. (
-                                1       ; serial
-                                14400   ; refresh
-                                3600    ; retry
-                                604800  ; expire
-                                86400 ) ; cache TTL
-
-                        NS      dns.{{ item.key }}.
-                        TXT     "DNS server for zone {{ item.key }}"
-
+$TTL 86400  ; 1 day
+{{ item.key }}        IN SOA  dns.{{ item.key }}. admin.{{ item.key }}. (
+                1          ; serial
+                14400      ; refresh (4 hours)
+                3600       ; retry (1 hour)
+                604800     ; expire (1 week)
+                86400      ; minimum (1 day)
+                )
+            NS  dns.{{ item.key }}.
+            TXT "DNS server for forward zone {{ item.key }}"
 $ORIGIN {{ item.key }}.
-
-dns                 IN  A       {{ ansible_all_ipv4_addresses | ipaddr(item.value) | join('') }} 
+dns         A   {{ ansible_all_ipv4_addresses | ipaddr(item.value) | join('') }}

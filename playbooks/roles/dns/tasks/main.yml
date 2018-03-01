@@ -48,7 +48,7 @@
     replace: 'OPTIONS="-u bind -4 -n 2"'
   register: etc_default_bind9_task
 
-# need dns_cidr_clients, dns_cidr_authorized_admin_ip, 
+# need dns_cidr_clients, dns_cidr_authorized_admin_ip
 - name: Generate the "/etc/bind/named.conf.options" file
   template:
     src: "{{ role_path }}/templates/main_named.conf.options.j2"
@@ -158,7 +158,7 @@
   register: tsig_key_generate_task
 
 # Fetch them if they are new
-- name: Fetch the newly TSIG key files from /etc/bind to "{{ ansible_working_directory }}/{{ inventory_hostname }}/etc/bind"
+- name: Fetch the new TSIG key files from /etc/bind to "{{ ansible_working_directory }}/{{ inventory_hostname }}/etc/bind"
   fetch:
     src: "/etc/bind/{{ item }}"
     dest: "{{ ansible_working_directory }}"
@@ -225,25 +225,27 @@
     group: bind
     mode: 0644
 
-- name: Initialize a dictionnary to store PTR zones
+- name: Initialize empty dictionaries
   set_fact:
     dns_master_ptr_zones: {}
+    reversed_forward_dict: {}
+    reversed_reverse_dict: {}
 
-- name: Calculate the PTR zones when network mask is greater than 1 and lesser than 9
+- name: Calculate the PTR zones when 1 < network mask < 9 
   set_fact:
-    dns_master_ptr_zones: "{{ dns_master_ptr_zones | combine( { item.key: item.value | ipaddr('revdns') | regex_replace('^[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.', '') } ) }}"
+    dns_master_ptr_zones: "{{ dns_master_ptr_zones | combine( { item.key : item.value | ipaddr('revdns') | regex_replace( '^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.', '') } ) }}"
   with_dict: "{{ dns_master_zones }}"
   when:
     - 1 < (item.value | ipaddr('prefix')) < 9
 
-- name: Calculate the PTR zones when network mask is greater than 8 and lesser than 17
+- name: Calculate the PTR zones when 8 < network mask < 16
   set_fact:
-    dns_master_ptr_zones: "{{ dns_master_ptr_zones | combine( { item.key: item.value | ipaddr('revdns') | regex_replace('^[0-9]{1,3}\\.[0-9]{1,3}\\.', '') } ) }}"
+    dns_master_ptr_zones: "{{ dns_master_ptr_zones | combine( { item.key: item.value | ipaddr('revdns') | regex_replace('^\\d{1,3}\\.\\d{1,3}\\.', '') } ) }}"
   with_dict: "{{ dns_master_zones }}"
   when:
     - 8 < (item.value | ipaddr('prefix')) < 17
 
-- name: Calculate the PTR zones when network mask is greater than 16
+- name: Calculate the PTR zones when 16 < network mask
   set_fact:
     dns_master_ptr_zones: "{{ dns_master_ptr_zones | combine( { item.key: item.value | ipaddr('revdns') | regex_replace('^[0-9]{1,3}\\.', '') } ) }}"
   with_dict: "{{ dns_master_zones }}"
@@ -293,23 +295,96 @@
       dynamic_forward_zones_task.changed or
       dynamic_reverse_zones_task.changed
 
-- debug:
-    var: dns_master_zones
-
-- set_fact:
-    reversed_forward_dict: {}
-
-- set_fact:
+- name: Revert forward zones dictionary
+  vars:
+    dns_master_zones_list: []
+  set_fact:
+    dns_master_zones_list: "{{ dns_master_zones_list + [item.key] }}"
     reversed_forward_dict: "{{ reversed_forward_dict | combine( { item.value : item.key } ) }}"
   with_dict: "{{ dns_master_zones }}"
 
-- debug:
-    msg: "item.0 : {{ item.0 }} - item.1 : {{ item.1 }} - item.0.name : {{ item.0.name }} - dns_master_ptr_zones {{ dns_master_ptr_zones }}"
+- name: Revert reverse zones dictionary
+  set_fact:
+    reversed_reverse_dict: "{{ reversed_reverse_dict | combine( { item.value : item.key } ) }}"
+  with_dict: "{{ dns_master_ptr_zones }}"
+
+- name: Dig the forward zones
+  command: "dig axfr -k {{ remote_tsig_key_files | select('match', '^.*private$') | list | join('') }} {{ item.key }}"
+  with_dict: "{{ dns_master_zones }}"
+  changed_when: False
+  register: dig_forward_command
+
+- name: Filter A records in the result of the dig of forward zones
+  no_log: True
+  vars:
+    dns_a_records: []
+  set_fact:
+    dns_a_records: "{{ dns_a_records + [ item.stdout_lines | map('regex_search', '.*[ \\t]A[ \\t].*') | select('string') | map('regex_replace', '^(.*)[ \\t][0-9]+[ \\t]IN[ \\t]A[ \\t](.*)$', '\\1 \\2') | list ] | sum(start=[]) }}"
+    delete_list_forward_zones: "{{ dns_a_records + [ item.stdout_lines | map('regex_search', '.*[ \\t]A[ \\t].*') | select('string') | map('regex_replace', '^(.*)[ \\t][0-9]+[ \\t]IN[ \\t]A[ \\t](.*)$', '\\1 \\2') | list ] | sum(start=[]) }}"
+  with_items:
+    - "{{ dig_forward_command.results }}"
+
+- name: Looking for A records to delete from the {{ delete_list_forward_zones | length }} records found in the forward zones
+  set_fact:
+    delete_list_forward_zones: "{{ delete_list_forward_zones | map( 'regex_replace', (item.0.name + '.*' + (item.1 | ipaddr('address'))) ) | select('match', '[a-zA-Z0-9-]') | list }}"
   with_subelements:
     - "{{ all_hosts_ips }}"
     - "ip"
 
-- name: Fill the forward zones with records
+- name: Build the combination list of "dns." + master zones
+  vars:
+    - dns_dot_zone_list: []
+  set_fact:
+    dns_dot_zone_list: "{{ dns_dot_zone_list + ['dns.' + item + '.'] }}"
+  with_items:
+    - "{{ dns_master_zones_list }}"
+
+- name: Build the combination list of "dns." + master zones + IP address of the DNS container
+  vars:
+    - dns_dot_zone_ip_list: []  
+  set_fact:
+    dns_dot_zone_ip_list: "{{ dns_dot_zone_ip_list + [ dns_dot_zone_list | map('regex_replace', '^(.*)$', ('\\1 ' + item)) | list ] | sum(start = []) }}"
+  with_items:
+    - "{{ ansible_all_ipv4_addresses }}"
+
+- name: Make the difference between A records list and combination of possible DNS records to not delete them
+  set_fact:
+    delete_list_forward_zones: "{{ delete_list_forward_zones | difference(dns_dot_zone_ip_list) }}"
+
+- name: Format the A records delete list
+  vars:
+    temporary_delete_list: []
+  set_fact:
+    temporary_delete_list: "{{ temporary_delete_list + [item.split(' ')] }}"
+  with_items:
+    - "{{ delete_list_forward_zones }}"
+
+- name: Format the A records delete list again
+  vars:
+    final_delete_list_forward_zones: []
+  set_fact:
+    final_delete_list_forward_zones: "{{ final_delete_list_forward_zones + [ item.0.split('.', 1) + [item.1] ] }}"
+  with_items:
+    - "{{ temporary_delete_list }}"
+  when:
+    - temporary_delete_list is defined
+
+- name: Delete obsolote A records in forward zones
+  nsupdate:
+    key_name: "{{ dns_tsig_key_name }}"
+    key_secret: "{{ dns_tsig_key_secret }}"
+    key_algorithm: "{{ dns_tsig_key_algorithm | lower }}"
+    server: "{{ ansible_host }}"
+    zone: "{{ item.1 }}"
+    record: "{{ item.0 + '.' + item.1 }}"
+    value: "{{ item.2 }}"
+    state: "absent"
+  with_items:
+    - "{{ final_delete_list_forward_zones }}"
+  when:
+    - final_delete_list_forward_zones is defined
+
+- name: Fill the forward zones with A records
   nsupdate:
     key_name: "{{ dns_tsig_key_name }}"
     key_secret: "{{ dns_tsig_key_secret }}"
@@ -318,9 +393,67 @@
     zone: "{{ reversed_forward_dict[ item.1 | ipaddr('network/prefix') ] }}"
     record: "{{ item.0.name }}"
     value: "{{ item.1 | ipaddr('address') }}"
+    state: "present"
   with_subelements:
     - "{{ all_hosts_ips }}"
     - "ip"
+
+- name: Dig the reverse zones
+  command: "dig axfr -k {{ remote_tsig_key_files | select('match', '^.*private$') | list | join('') }} {{ item.value }}"
+  with_dict: "{{ dns_master_ptr_zones }}"
+  changed_when: False
+  register: dig_reverse_command
+
+- name: Filter PTR records in the result of the dig of reverse zones
+  no_log: True
+  vars:
+    dns_ptr_records: []
+  set_fact:
+    dns_ptr_records: "{{ dns_ptr_records + [ item.stdout_lines | map('regex_search', '.*[ \\t]PTR[ \\t].*') | select('string') | map('regex_replace', '^(.*)[ \\t][0-9]+[ \\t]IN[ \\t]PTR[ \\t](.*)$', '\\1 \\2') | list ] | sum(start=[]) }}"
+    delete_list_reverse_zones: "{{ dns_ptr_records + [ item.stdout_lines | map('regex_search', '.*[ \\t]PTR[ \\t].*') | select('string') | map('regex_replace', '^(.*)[ \\t][0-9]+[ \\t]IN[ \\t]PTR[ \\t](.*)$', '\\1 \\2') | list ] | sum(start=[]) }}"
+  with_items:
+    - "{{ dig_reverse_command.results }}"
+
+- name: Looking for PTR records to delete from the {{ delete_list_reverse_zones | length }} records found in the reverse zones
+  set_fact:
+    delete_list_reverse_zones: "{{ delete_list_reverse_zones | map( 'regex_replace', ((item.1 | ipaddr('revdns')) + ' ' + item.0.name + '.*')) | select('match', '[a-zA-Z0-9-]') | list }}"
+  with_subelements:
+    - "{{ all_hosts_ips }}"
+    - "ip"
+
+- name: Format the PTR records delete list
+  vars:
+    temporary_reverse_delete_list: []
+  set_fact:
+    temporary_reverse_delete_list: "{{ temporary_reverse_delete_list + [item.split(' ')] }}"
+  with_items:
+    - "{{ delete_list_reverse_zones }}"
+
+- name: Format the PTR records delete list again
+  vars:
+    final_delete_list_reverse_zones: []
+  set_fact:
+    final_delete_list_reverse_zones: "{{ final_delete_list_reverse_zones + [[item.0] + item.1.split('.', 1)] }}"
+  with_items:
+    - "{{ temporary_reverse_delete_list }}"
+  when:
+    - temporary_reverse_delete_list is defined
+
+- name: Delete obsolote PTR records in reverse zones
+  nsupdate:
+    key_name: "{{ dns_tsig_key_name }}"
+    key_secret: "{{ dns_tsig_key_secret }}"
+    key_algorithm: "{{ dns_tsig_key_algorithm | lower }}"
+    server: "{{ ansible_host }}"
+    zone: "{{ dns_master_ptr_zones[item.2[:-1]] }}"
+    record: "{{ item.0 }}"
+    value: "{{ item.1 + '.' + item.2 }}"
+    state: "absent"
+    type: "PTR"
+  with_items:
+    - "{{ final_delete_list_reverse_zones }}"
+  when:
+    - final_delete_list_reverse_zones is defined
 
 - name: Fill the reverse zones with records
   nsupdate:
@@ -335,4 +468,3 @@
   with_subelements:
     - "{{ all_hosts_ips }}"
     - "ip"
-    
