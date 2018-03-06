@@ -33,3 +33,11 @@
     owner: root 
     group: root
     mode: 0644
+
+- name: Modify /root/.profile
+  lineinfile:
+    path: /root/.profile
+    regexp: '^(mesg n \|\| true)$'
+    line: '#\1'
+    state: present
+    backrefs: yes

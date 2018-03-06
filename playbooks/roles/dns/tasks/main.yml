@@ -11,7 +11,7 @@
     - python3-dnsq
     - python3-pip
 
-- name: Create /var/log/bind directory
+- name: Verify that /var/log/bind directory exists
   file:
     path: /var/log/bind
     state: directory
@@ -33,7 +33,7 @@
     group: root
     mode: 0644
 
-- name: Verify "/etc/bind" directory
+- name: Verify that the "/etc/bind" directory exists
   file:
     path: /etc/bind
     state: directory
@@ -41,11 +41,11 @@
     owner: bind
     group: root
 
-- name: Modify /etc/default/bind9
-  replace:
+- name: Modify "/etc/default/bind9" to listen on IPv4 only and work this 2 threads
+  lineinfile:
     path: /etc/default/bind9
-    regexp: '^OPTIONS="-u bind"$'
-    replace: 'OPTIONS="-u bind -4 -n 2"'
+    regexp: '^OPTIONS="'
+    line: 'OPTIONS="-u bind -4 -n 2"'
   register: etc_default_bind9_task
 
 # need dns_cidr_clients, dns_cidr_authorized_admin_ip
@@ -68,9 +68,9 @@
   register: etc_bind_named_conf_logs_task
 
 - name: Copy the "named.conf" file
-  copy:
-    src: "{{ role_path }}/files/main_named.conf"
-    dest: /etc/bind/named.conf
+  template:
+    src: "{{ role_path }}/templates/main_named.conf.j2"
+    dest: "/etc/bind/named.conf"
     owner: root
     group: bind
     mode: 0644
@@ -217,13 +217,18 @@
     - ansible_renew_all
 
 # need dns_tsig_key_name, dns_tsig_key_algorithm and dns_tsig_key_secret
-- name: Convert TSIG key for being readable by bind and push it into "/etc/bind/named.conf.tsigkeys"
+- name: Convert TSIG key for being readable by bind and push it into "/etc/bind/named.conf.{{ dns_tsig_key_name }}"
   template:
     src: "{{ role_path }}/templates/main_tsig_key.j2"
-    dest: /etc/bind/named.conf.tsigkeys
+    dest: "/etc/bind/named.conf.{{ dns_tsig_key_name }}"
     owner: root
     group: bind
     mode: 0644
+
+- name: Fetch the converted TSIG key file from /etc/bind/ to "{{ ansible_working_directory }}/{{ inventory_hostname }}/etc/bind" on localhost
+  fetch:
+    src: "/etc/bind/named.conf.{{ dns_tsig_key_name }}"
+    dest: "{{ ansible_working_directory }}"
 
 - name: Initialize empty dictionaries
   set_fact:
@@ -268,6 +273,8 @@
     dest: "/var/lib/bind/db.{{ item.key }}"
   with_dict: "{{ dns_master_zones }}"
   register: dynamic_forward_zones_task
+  when:
+    - ansible_renew_all 
 
 - name: Create dynamic reverse zone files
   template:
@@ -275,6 +282,8 @@
     dest: "/var/lib/bind/db.{{ item.value | regex_replace('.in-addr.arpa.', '') }}"
   with_dict: "{{ dns_master_ptr_zones }}"
   register: dynamic_reverse_zones_task
+  when:
+    - ansible_renew_all 
 
 - include_tasks: logrotate.yml
 
@@ -307,6 +316,63 @@
   set_fact:
     reversed_reverse_dict: "{{ reversed_reverse_dict | combine( { item.value : item.key } ) }}"
   with_dict: "{{ dns_master_ptr_zones }}"
+
+- name: Try to read the file "/var/lib/dhcp/dhcpd.leases" from DHCP pairs
+  slurp:
+    src: /var/lib/dhcp/dhcpd.leases
+  with_items:
+    - "{{ dns_pair_dhcp }}"
+  delegate_to: "{{ item }}"
+  failed_when: False
+  register: slurp_dhcp_leases_task
+
+- debug:
+    var: slurp_dhcp_leases_task
+
+- name: Make a list of DHCP leases
+  set_fact:
+    dhcp_leases_basic: "{{ item.content | b64decode | regex_findall('(?s)\\nlease.*?\\n}') | list }}"
+  with_items:
+    - "{{ slurp_dhcp_leases_task.results }}"
+  no_log: true
+  when:
+    - "(item.msg is not defined) or (item.msg is defined and 'file not found' not in item.msg)"
+
+- debug:
+    var: dhcp_leases_basic
+
+- name: Remove useless data from the list of DHCP leases
+  vars:
+    dhcp_leases_precise: []
+  set_fact:
+    dhcp_leases_precise: "{{ dhcp_leases_precise + [[item | regex_search('lease .*? {') | regex_replace('lease (.*) {', '\\1'), item | regex_search('ddns-rev-name = \".*?\"') | regex_replace('.*\"(.*)\".*', '\\1'), item | regex_search('ddns-txt = \".*?\"') | regex_replace('.*\"(.*)\".*', '\\1'), item | regex_search('ddns-fwd-name = \".*?\"') | regex_replace('.*\"(.*)\".*', '\\1'), item | regex_search('client-hostname \".*?\"') | regex_replace('.*\"(.*)\".*', '\\1')]] }}"
+  with_items:
+    - "{{ dhcp_leases_basic }}"
+
+- debug:
+    var: dhcp_leases_precise
+
+- name: Make the lists of records in the DHCP leases
+  vars:
+    ptr_records_in_dhcp: []
+    a_records_in_dhcp: []
+  set_fact:
+    ptr_records_in_dhcp: "{{ ptr_records_in_dhcp + [[item.1, item.4, (item.3 | regex_replace(item.4 + '\\.(.*)', '\\1'))]] }}"
+    a_records_in_dhcp: "{{ a_records_in_dhcp + [[item.4, (item.3 | regex_replace(item.4 + '\\.(.*)', '\\1')), item.0]] }}"
+  with_items:
+    - "{{ dhcp_leases_precise }}"
+  when:
+    - item.0 != 'None'
+    - item.1 != 'None'
+    - item.2 != 'None'
+    - item.3 != 'None'
+    - item.4 != 'None'
+
+- debug:
+    var: ptr_records_in_dhcp
+
+- debug:
+    var: a_records_in_dhcp
 
 - name: Dig the forward zones
   command: "dig axfr -k {{ remote_tsig_key_files | select('match', '^.*private$') | list | join('') }} {{ item.key }}"
@@ -369,6 +435,16 @@
   when:
     - temporary_delete_list is defined
 
+- name: Remove from the A records delete list the records obtained from DHCP leases
+  set_fact:
+    final_delete_list_forward_zones: "{{ final_delete_list_forward_zones | difference(a_records_in_dhcp) }}"
+  when:
+    - final_delete_list_forward_zones is defined
+    - a_records_in_dhcp is defined
+
+- debug:
+    var: final_delete_list_forward_zones
+
 - name: Delete obsolote A records in forward zones
   nsupdate:
     key_name: "{{ dns_tsig_key_name }}"
@@ -394,6 +470,7 @@
     record: "{{ item.0.name }}"
     value: "{{ item.1 | ipaddr('address') }}"
     state: "present"
+    ttl: 86400
   with_subelements:
     - "{{ all_hosts_ips }}"
     - "ip"
@@ -439,6 +516,16 @@
   when:
     - temporary_reverse_delete_list is defined
 
+- name: Remove from the PTR records delete list the records obtained from DHCP leases
+  set_fact:
+    final_delete_list_reverse_zones: "{{ final_delete_list_reverse_zones | difference(ptr_records_in_dhcp) }}"
+  when:
+    - final_delete_list_reverse_zones is defined
+    - ptr_records_in_dhcp is defined
+
+- debug:
+    var: final_delete_list_reverse_zones
+
 - name: Delete obsolote PTR records in reverse zones
   nsupdate:
     key_name: "{{ dns_tsig_key_name }}"
@@ -455,7 +542,7 @@
   when:
     - final_delete_list_reverse_zones is defined
 
-- name: Fill the reverse zones with records
+- name: Fill the reverse zones with PTR records
   nsupdate:
     key_name: "{{ dns_tsig_key_name }}"
     key_secret: "{{ dns_tsig_key_secret }}"
@@ -465,6 +552,7 @@
     record: "{{ item.1 | ipaddr('revdns') }}"
     value: "{{ item.0.name }}.{{ reversed_forward_dict[ item.1 | ipaddr('network/prefix') ] }}."
     type: "PTR"
+    ttl: 86400
   with_subelements:
     - "{{ all_hosts_ips }}"
     - "ip"

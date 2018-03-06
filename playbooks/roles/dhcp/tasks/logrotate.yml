@@ -1,0 +1,8 @@
+---
+- name: Configure logrotate for isc-dhcp-server
+  copy:
+    src: "{{ role_path }}/files/logrotate_dhcpd"
+    dest: /etc/logrotate.d/logrotate_dhcpd
+    owner: root
+    group: root
+    mode: 0644

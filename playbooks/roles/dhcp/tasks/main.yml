@@ -1,0 +1,53 @@
+---
+# role dns - file main.yml
+
+- name: Update repositories cache and install isc-dhcp-server package
+  action: >
+    {{ ansible_pkg_mgr }} name={{ item }} update_cache=yes cache_valid_time=3600 state=present
+  with_items:
+    - isc-dhcp-server
+
+- name: Disable and stop the isc-dhcp-server6 service
+  systemd:
+    name: isc-dhcp-server6 
+    state: stopped
+    enabled: no
+
+- name: Set listening interface(s) in the "/etc/default/isc-dhcp-server" file
+  vars:
+    dhcp_networks_list_as_string: "{{ dhcp_networks | join(' ') }}"
+  lineinfile:
+    path: /etc/default/isc-dhcp-server
+    regexp: '^INTERFACESv4="'
+    line: 'INTERFACESv4="{{ dhcp_networks_list_as_string }}"'
+  register: etc_default_isc_dhcp_server_task
+
+- name: Copy TSIG key from pair DNS server(s) to "/etc/dhcp/"
+  copy:
+    src: "{{ ansible_working_directory }}/{{ item }}/etc/bind/named.conf.{{ hostvars[item]['dns_tsig_key_name'] }}"
+    dest: "/etc/dhcp/key_{{ item }}_{{ hostvars[item]['dns_tsig_key_name'] }}"
+  with_items:
+    - "{{ dhcp_pair_dns }}"
+
+- name: Generate the "/etc/dhcp/dhcpd.conf" file
+  vars:
+    dns_domains_list_as_string: "{{ dns_domains | join(' ') }}"
+  template:
+    src: "{{ role_path }}/templates/main_dhcpd.conf.j2"
+    dest: /etc/dhcp/dhcpd.conf
+    owner: root
+    group: root
+    mode: 0644
+  register: etc_dhcp_dhcpd_conf_task
+
+- name: Restart the isc-dhcp-server service
+  systemd:
+    name: isc-dhcp-server 
+    state: restarted
+    enabled: yes
+  when:
+    - etc_default_isc_dhcp_server_task.changed or
+      etc_dhcp_dhcpd_conf_task.changed
+
+- import_tasks: rsyslog.yml
+- import_tasks: logrotate.yml

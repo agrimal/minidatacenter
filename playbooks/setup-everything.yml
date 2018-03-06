@@ -27,4 +27,4 @@
 
 - import_playbook: setup-ca.yml
 - import_playbook: setup-dns.yml
-#- include: setup-dhcp.yml
+- import_playbook: setup-dhcp.yml

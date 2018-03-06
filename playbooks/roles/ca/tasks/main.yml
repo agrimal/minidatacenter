@@ -27,6 +27,7 @@
 
 # Copy directories but not files
 - name: Create in "{{ ca_easy_rsa_install_dir }}" the directories found in "{{ easy_rsa_source_dir }}" 
+  no_log: True
   file:
     path: "{{ item.path | regex_replace(easy_rsa_source_dir, ca_easy_rsa_install_dir) }}"
     state: directory
@@ -38,6 +39,7 @@
 
 # Copy all files except directories and 'vars'
 - name: Copy the files (except 'vars') from "{{ easy_rsa_source_dir }}" to "{{ ca_easy_rsa_install_dir }}"
+  no_log: True
   copy:
     src: "{{ item.path }}"
     dest: "{{ item.path | regex_replace(easy_rsa_source_dir, ca_easy_rsa_install_dir) }}"

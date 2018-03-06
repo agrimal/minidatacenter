@@ -6,6 +6,7 @@
     owner: root
     group: root
     mode: 0644
+
 - name: Copy /etc/rsyslog.d/50-default.conf
   copy:
     src: "{{ role_path }}/files/rsyslog_50-default.conf"
@@ -13,3 +14,5 @@
     owner: root
     group: root
     mode: 0644
+  when:
+    - "'dhcp_hosts' not in group_names"

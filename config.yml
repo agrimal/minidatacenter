@@ -9,6 +9,7 @@ ansible_ssh_public_key: '/root/.ssh/id_rsa.pub'
 # The DNS IPs are set per interface and not globally, which sounds logic
 #   as the DNS server has to be accessed via a specific netwotk
 networks:
+
     - name: "external"
       host_bridge: "br-ext"
       container_interface: "ethext"
@@ -16,7 +17,10 @@ networks:
       gateway: 192.168.1.1 # Put here the IP of your router to internet
       gateway_is_default_route: True
       dns_ip:
+          - 192.168.1.231
           - 192.168.1.1 # I recommend to put here the IP of your router in case of the DNS container fails
+      dhcp_range: "192.168.1.150 192.168.1.199"
+
     - name: "internal"
       host_bridge: "br-int"
       container_interface: "ethint"
@@ -25,6 +29,7 @@ networks:
       gateway_is_default_route: False
       dns_ip:
           - 10.10.0.31 # We use here the internal IP of the DNS container
+      dhcp_range:
 
 # containers
 # Hierarchical tree of groups, names and IP addresses for each network
@@ -39,20 +44,14 @@ containers:
         ubudhcp02:
             external: 192.168.1.232
             internal: 10.10.0.32
-    dhcd_hosts:
-        ubvdhcp07:
-            external: 192.168.1.157
-            internal: 10.10.0.109
     ca_hosts:
         ubuca02:
             external: 192.168.1.233
             internal: 10.10.0.33
     ldap_hosts:
         ubuldap02:
-            external: 192.168.1.26
-            internal: 10.10.0.49
-        ubuldap07:
-            external: 192.168.1.238
+            external: 192.168.1.234
+            internal: 10.10.0.34
 
 # containers_config
 # You can add here any compatible LXD parameter
@@ -127,13 +126,6 @@ services:
                     - 'client01'
                     - 'client03'
                     - 'client04'
-    # LDAP configuration
-    ldap_config:
-        vars:
-            url: 'ldap.tech-tips.home'
-            base_dn: 'dc=tech-tips,dc=fr'
-        ubuldap02:
-            toto: 'toto'
 
     # DNS configuration
     dns_config:
@@ -144,19 +136,52 @@ services:
             aliases:
                 ldap.tech-tips.home: 'ubuldap02.tech-tips.home'
             tsig_key_name: 'tsig-key'
-            tsig_key_algorithm: 'HMAC-SHA512'
+            tsig_key_algorithm: 'hmac-sha512'
         ubudns02:
             # IP who can transfer and update the zones
             # The name will be added as comment in the config file
             cidr_authorized_admin_ip: 
+                - { 'DHCP container' : '192.168.1.232/32' }
                 - { 'DHCP container' : '10.10.0.32/32' }
             # IP who can just query the DNS
             # The name will be added as comment in the config file
             cidr_clients:
-                - { 'Clients' : '192.168.1.0/24' }
+                - { 'Clients in external network' : '192.168.1.0/24' }
+                - { 'Clients in internal network' : '10.10.0.0/24' }
             # The zones this server is master
             # Form : { zone : subnet }
             # The PTR will be calculated from the subnet
             master_zones:
                 tech-tips.fr: '192.168.1.0/24'
                 tech-tips.home: '10.10.0.0/24'
+            # For the DHCP servers listed here, will try to retrieve active leases
+            # so we don't delete them when executing the playbook.
+            pair_dhcp:
+                - 'ubudhcp02'
+
+    # DHCP configuration 
+    dhcp_config:
+        vars:
+            default_lease_time: 14400 # 4 hours
+            max_lease_time: 86400 # 1 day
+        ubudhcp02:
+            # The networks the dhcp server is working on
+            networks:
+                - 'external'
+                - 'internal'
+            # The DNS servers on which to put A, PTR and TXT records when new lease is given.
+            pair_dns:
+                - 'ubudns02'
+            # Filter the zones the DHCP server will work on
+            zones:
+                - 'tech-tips.fr'
+
+    # LDAP configuration
+    ldap_config:
+        vars:
+            url: 'ldap.tech-tips.home'
+            base_dn: 'dc=tech-tips,dc=fr'
+        ubuldap02:
+            toto: 'toto'
+
+
