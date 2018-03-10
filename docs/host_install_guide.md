@@ -339,5 +339,10 @@ mount | grep -v zfs | tac | awk '/\/mnt/ {print $3}' | xargs -i{} umount -lf {}
 systemctl reboot
 ```
 At this point, your server may hang, just reset it.
+If you already had a zfs pool on your hard drives, then the first boot will fail.
+In this case you have to manually import the pool and reboot again.
+```bash
+zfs import -f rpool
+```
 
 35. You can now log in your freshly installed Ubuntu 18.04 server and start installing and configuring LXD
