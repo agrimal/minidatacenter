@@ -158,8 +158,8 @@ zfs create rpool/var/log
 zfs create rpool/var/spool
 zfs create -o com.sun:auto-snapshot=false -o exec=on rpool/var/tmp
 zfs create rpool/srv
-zfs create -V 10G -b $(getconf PAGESIZE) -o compression=zle -o logbias=throughput -o sync=always -o
-primarycache=metadata -o secondarycache=none -o com.sun:auto-snapshot=false rpool/swap
+zfs create -V 10G -b $(getconf PAGESIZE) -o compression=zle -o logbias=throughput -o sync=always -o \
+    primarycache=metadata -o secondarycache=none -o com.sun:auto-snapshot=false rpool/swap
 ```
 
 15. Change permissions on `/mnt/var/tmp`
