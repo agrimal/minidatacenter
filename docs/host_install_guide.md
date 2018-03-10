@@ -56,7 +56,7 @@ Make a bootable USB key with the Ubuntu 18.04 ISO, or load it with your IPMI int
 You can download the ISO on the [Ubuntu website](http://cdimage.ubuntu.com/daily-live/current/HEADER.html)
 Choose the desktop version because we need the live-CD functionality.
 
-1. Boot the Ubuntu 18.04 ISO and choose `Try ubuntu`.
+1. Boot the Ubuntu 18.04 ISO and choose `Try ubuntu without installing`.
 
 2. Once you're on the desktop, open a terminal and change to root user
 ```bash
@@ -83,7 +83,7 @@ PermitRootLogin yes
 ```bash
 systemctl reload ssh
 ```
-Now you can connect to your server via SSH from your computer, so you can copy/paste the commands.
+Now you can connect to your server via SSH from your computer, so you can copy/paste the next commands.
 
 7. Change repositories
 ```bash
@@ -345,4 +345,4 @@ In this case you have to manually import the pool and reboot again.
 zfs import -f rpool
 ```
 
-35. You can now log in your freshly installed Ubuntu 18.04 server and start installing and configuring LXD
+35. You can now log in your freshly installed Ubuntu 18.04 server and start installing and configuring LXD.
