@@ -17,6 +17,21 @@ acl dns_admin {
 };
 
 options {
+    # check-names ( master | slave | response ) ( warn | fail | ignore );
+    # The check-names statement will cause any host name of the defined type to
+    # be checked for compliance with RFC 952 and RFC 1123 and result in the
+    # defined action. Care should be taken when using this statement because
+    # many modern RRs e.g. SRV use names which do not meet these standards (they
+    # contain an underscore) but are permitted by RFC 2181 which greatly
+    # liberalized the rules for names (see labels and names). The type of host
+    # name to be checked may be master in which case the host names check only
+    # applies to master zones, slave applies only to slave zones and response
+    # applies to all host names that arrive in response to a query from this
+    # server. The default is not to perform host name checks. check-names may
+    # appear in a view or options clause with this syntax and also in a zone
+    # clause where it has a different syntax.
+    check-names master ignore;
+
     # directory "path_name";
     # directory is a quoted string defining the absolute path for the server
     # e.g. "/var/named". All subsequent relative paths use this base directory.

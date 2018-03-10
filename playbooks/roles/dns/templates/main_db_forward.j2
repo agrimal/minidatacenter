@@ -8,6 +8,6 @@ $TTL 86400  ; 1 day
                 86400      ; minimum (1 day)
                 )
             NS  dns.{{ item.key }}.
-            TXT "DNS server for forward zone {{ item.key }}"
+;            TXT "DNS server for forward zone {{ item.key }}"
 $ORIGIN {{ item.key }}.
 dns         A   {{ ansible_all_ipv4_addresses | ipaddr(item.value) | join('') }}

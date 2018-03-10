@@ -380,15 +380,23 @@
   changed_when: False
   register: dig_forward_command
 
-- name: Filter A records in the result of the dig of forward zones
+- debug:
+    var: dig_forward_command.results
+
+- name: Filter A and TXT records in the result of the dig of forward zones
   no_log: True
   vars:
     dns_a_records: []
+    dns_txt_records: []
   set_fact:
     dns_a_records: "{{ dns_a_records + [ item.stdout_lines | map('regex_search', '.*[ \\t]A[ \\t].*') | select('string') | map('regex_replace', '^(.*)[ \\t][0-9]+[ \\t]IN[ \\t]A[ \\t](.*)$', '\\1 \\2') | list ] | sum(start=[]) }}"
+    dns_txt_records: "{{ dns_txt_records + [ item.stdout_lines | map('regex_search', '.*[ \\t]TXT[ \\t].*') | select('string') | map('regex_replace', '^(.*)[ \\t]+[0-9]+[ \\t]+IN[ \\t]+TXT[ \\t]+(.*)$', '\\1 \\2') | list ] | sum(start=[]) }}"
     delete_list_forward_zones: "{{ dns_a_records + [ item.stdout_lines | map('regex_search', '.*[ \\t]A[ \\t].*') | select('string') | map('regex_replace', '^(.*)[ \\t][0-9]+[ \\t]IN[ \\t]A[ \\t](.*)$', '\\1 \\2') | list ] | sum(start=[]) }}"
   with_items:
     - "{{ dig_forward_command.results }}"
+
+- debug:
+    var: dns_txt_records
 
 - name: Looking for A records to delete from the {{ delete_list_forward_zones | length }} records found in the forward zones
   set_fact:

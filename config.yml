@@ -133,8 +133,19 @@ services:
             domains:
                 - 'tech-tips.fr'
                 - 'tech-tips.home'
-            aliases:
-                ldap.tech-tips.home: 'ubuldap02.tech-tips.home'
+            additional_records:
+                aliases:
+                    tech-tips.home:
+                        - ldap: 'ubuldap02.tech-tips.home'
+                txt:
+                    tech-tips.fr:
+                        - '': 'DNS server for forward zone tech-tips.fr'
+                    tech-tips.home:
+                        - '': 'DNS server for forward zone tech-tips.home'
+                a:
+                    tech-tips.fr:
+                        - cloud: '192.168.1.108'
+                
             tsig_key_name: 'tsig-key'
             tsig_key_algorithm: 'hmac-sha512'
         ubudns02:
