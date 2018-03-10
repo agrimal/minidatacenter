@@ -194,7 +194,7 @@ to my server on the "eno1" interface.
 If you don't know how to configure your network with Netplan, please read the
 documentation [here](http://manpages.ubuntu.com/manpages/artful/man5/netplan.5.html)
 ```bash
-cat << EOF > /mnt/etc/netplan/config.yml
+cat << EOF > /mnt/etc/netplan/config.yaml
 network:
     ethernets:
         eno1:
