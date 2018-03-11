@@ -32,15 +32,16 @@ server or a home computer is just fine to install The Minidatacenter project.
 All of these components fit in a small form-factor (ITX), while their
 performance is still impressive for a home usage.
 The plus here is an IPMI interface on the motherboard, allowing you to take
-control of the server over the network, and load ISO images from a remote computer.
+control of the server over the network, and load ISO images from a remote
+computer.
 All the containers are stored directly on the mirrored SSD's.
 ECC memory allow for more stable platform, but this this not really necessary
 at home.
 
 I recommend using at least a dual-core CPU with SMT / Hyperthreading or a quad-
 core without it.
-Concerning the memory, I recommend at least 8 GB because we are using zfs here and
-zfs increases performance at the cost of high memory consumption.
+Concerning the memory, I recommend at least 8 GB because we are using zfs here
+and zfs increases performance at the cost of high memory consumption.
 
 Prerequisites
 =============
@@ -52,8 +53,10 @@ Replace it with yours when needed.
 First steps
 ===========
 
-Make a bootable USB key with the Ubuntu 18.04 ISO, or load it with your IPMI interface.
-You can download the ISO on the [Ubuntu website](http://cdimage.ubuntu.com/daily-live/current/HEADER.html)
+Make a bootable USB key with the Ubuntu 18.04 ISO, or load it with your IPMI
+interface.\
+You can download the ISO on the [Ubuntu website](http://cdimage.ubuntu.com/daily
+-live/current/HEADER.html)
 Choose the desktop version because we need the live-CD functionality.
 
 1. Boot the Ubuntu 18.04 ISO and choose `Try ubuntu without installing`.
@@ -74,7 +77,8 @@ apt install --yes vim openssh-server
 passwd
 ```
 
-5. Edit the openssh server configuration file `/etc/ssh/sshd_config` and add the following line :
+5. Edit the openssh server configuration file `/etc/ssh/sshd_config` and add the\
+following line :
 ```
 PermitRootLogin yes
 ```
@@ -83,14 +87,17 @@ PermitRootLogin yes
 ```bash
 systemctl reload ssh
 ```
-Now you can connect to your server via SSH from your computer, so you can copy/paste the next commands.
+Now you can connect to your server via SSH from your computer, so you can copy/
+paste the next commands.
 
 7. Change repositories
 ```bash
 cat << EOF > /etc/apt/sources.list
 deb http://archive.ubuntu.com/ubuntu/ bionic main restricted universe multiverse
-deb http://security.ubuntu.com/ubuntu/ bionic-security main restricted universe multiverse
-deb http://archive.ubuntu.com/ubuntu/ bionic-updates main restricted universe multiverse
+deb http://security.ubuntu.com/ubuntu/ bionic-security main restricted universe \
+multiverse
+deb http://archive.ubuntu.com/ubuntu/ bionic-updates main restricted universe \
+multiverse
 EOF
 ```
 
@@ -112,7 +119,7 @@ modprobe zfs
 ```bash
 ls -l /dev/disk/by-id/
 ```
-For example mine are :
+For example mines are :
 ```
 /dev/disk/by-id/ata-SanDisk_Ultra_II_240GB_171028800778
 /dev/disk/by-id/ata-TS240GSSD220S_032272B0D88187210048
@@ -189,8 +196,9 @@ EOF
 ```
 
 19. Configure the network
-In this example my server has 2 network interfaces and i assign the fixed 192.168.1.200 IP address
-to my server on the "eno1" interface.
+In this example my server has 2 network interfaces and i leave them in DHCP.
+The server will get a static IP address later.
+Just make sure with the `ip a` command that your main interface name is 'eno1'.
 If you don't know how to configure your network with Netplan, please read the
 documentation [here](http://manpages.ubuntu.com/manpages/artful/man5/netplan.5.html)
 ```bash
@@ -198,10 +206,7 @@ cat << EOF > /mnt/etc/netplan/config.yaml
 network:
     ethernets:
         eno1:
-            addresses: [192.168.1.200/24]
-            gateway4: 192.168.1.1
-            nameservers:
-               addresses: [192.168.1.1]
+            dhcp4: no
             dhcp6: no
         eno2:
             dhcp4: no
@@ -209,57 +214,37 @@ network:
 EOF
 ```
 
-20. Configure the DNS resolver
-```bash
-cat << EOF > /mnt/etc/systemd/resolved.conf
-[Resolve]
-DNS=192.168.1.1
-FallbackDNS=192.168.1.1
-Domains=
-LLMNR=no
-MulticastDNS=no
-DNSSEC=allow-downgrade
-Cache=yes
-DNSStubListener=udp
-EOF
-```
-
-21. Prepare the chroot
+20. Prepare the chroot
 ```bash
 mount --rbind /dev /mnt/dev
 mount --rbind /proc /mnt/proc
 mount --rbind /sys /mnt/sys
 ```
 
-22. Chroot into the /mnt directory
+21. Chroot into the /mnt directory
 ```bash
 chroot /mnt /bin/bash --login
 ```
 
-23. Give a password to root
+22. Give a password to root
 ```bash
 passwd
 ```
 
-24. Configure the locale
+23. Configure the locale
 ```bash
 locale-gen en_US.UTF-8
 update-locale LANG=en_US.UTF-8
 ```
 
-25. Install packages
+24. Install packages
 ```bash
 apt update
-# Mandatory packages
 apt install --yes --no-install-recommends linux-image-generic
-apt install --yes zfs-initramfs dosfstools grub-efi-amd64
-# Optional packages
-apt install --yes openssh-server htop iftop bash-completion curl man-db bsdmainutils dmidecode \
-    dnsutils hdparm iptables iputils-tracepath lsof ltrace manpages mlocate pciutils rsync \
-    strace tcpdump telnet time traceroute vim
+apt install --yes zfs-initramfs dosfstools grub-efi-amd64 openssh-server
 ```
 
-26. Modify the way /var/log and /var/tmp are mounted
+25. Modify the way /var/log and /var/tmp are mounted
 ```bash
 zfs set mountpoint=legacy rpool/var/log
 zfs set mountpoint=legacy rpool/var/tmp
@@ -270,13 +255,13 @@ rpool/var/tmp /var/tmp zfs defaults 0 0
 EOF
 ```
 
-27. Modify the Grub options
+26. Modify the Grub options
 ```bash
 sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT.*/GRUB_CMDLINE_LINUX_DEFAULT="ipv6.disable=1"/' /etc/default/grub
 update-grub
 ```
 
-28. Format and configure the EFI partitions
+27. Format and configure the EFI partitions
 ```bash
 FIRST_DISK='/dev/disk/by-id/ata-SanDisk_Ultra_II_240GB_171028800778'
 SECOND_DISK='/dev/disk/by-id/ata-TS240GSSD220S_032272B0D88187210048'
@@ -292,15 +277,16 @@ mount "${SECOND_DISK}-part3" /boot/efi
 grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=ubuntu2 --recheck --no-floppy
 ```
 
-29. Configure the swap
+28. Configure the swap
 ```bash
 mkswap -f /dev/zvol/rpool/swap
 echo /dev/zvol/rpool/swap none swap defaults 0 0 >> /etc/fstab
 swapon -av
 ```
 
-30. Deactivate logs compression
-You don't need to compress files since compression is done on the filesystem level with ZFS
+29. Deactivate logs compression
+You don't need to compress files since compression is done on the filesystem
+level with ZFS
 ```bash
 for file in /etc/logrotate.d/* ; do
     if grep -Eq "(^|[^#y])compress" "$file" ; then
@@ -309,19 +295,20 @@ for file in /etc/logrotate.d/* ; do
 done
 ```
 
-31. Modify the ARC size for ZFS (set limit to memory for ZFS)
+30. Modify the ARC size for ZFS (set limit to memory for ZFS)
 You can set for example 2GB minimum : 2147483648 bytes
 And 16GB for maximum : 17179869184 bytes
 ```bash
-echo -e "options zfs zfs_arc_min=2147483648\noptions zfs zfs_arc_max=17179869184" > /etc/modprobe.d/zfs.conf
+echo -e "options zfs zfs_arc_min=2147483648\noptions zfs \
+zfs_arc_max=17179869184" > /etc/modprobe.d/zfs.conf
 ```
 
-32. Create new initramfs
+31. Create new initramfs
 ```bash
 update-initramfs -u -k all
 ```
 
-33. Allow password login for user root with ssh
+32. Allow password login for user root with ssh
 You may want to disable this later for security reasons
 ```bash
 sed -i 's/#PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
@@ -339,11 +326,13 @@ mount | grep -v zfs | tac | awk '/\/mnt/ {print $3}' | xargs -i{} umount -lf {}
 systemctl reboot
 ```
 At this point, your server may hang, just reset it.\
-On the first boot, zfs will complain that the "rpool" pool cannot be imported because it was in used by another system.\
+On the first boot, zfs will complain that the "rpool" pool cannot be imported
+because it was in used by another system.\
 Just force import the pool and reboot again.
 ```bash
 zfs import -f rpool
 reboot
 ```
 
-35. You can now log in your freshly installed Ubuntu 18.04 server and start installing and configuring LXD.
+35. You can now log in your freshly installed Ubuntu 18.04 server and start
+installing and configuring LXD.

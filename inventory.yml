@@ -1,0 +1,51 @@
+all:
+    hosts:
+        localhost:
+            # Network configuration of the host
+            # This is Netplan syntax
+            # Please read https://wiki.ubuntu.com/Netplan for more information
+            network:
+                ethernets:
+                    eno1:
+                        dhcp4: no
+                        dhcp6: no
+                    eno2:
+                        dhcp4: no
+                        dhcp6: no
+                bridges:
+                    br-ext:
+                        addresses:
+                        - 192.168.1.200/24
+                        gateway4: 192.168.1.1
+                        nameservers:
+                            addresses:
+                            - 192.168.1.201
+                            - 192.168.1.1
+                        interfaces:
+                        - eno1
+                        dhcp4: no
+                        dhcp6: no
+                    br-int:
+                        addresses:
+                        - 10.10.0.200/24
+                        dhcp4: no
+                        dhcp6: no
+    vars:
+        ansible_python_interpreter: '/usr/bin/env python3'
+        minidc_working_directory: '/opt/minidc_secrets'
+    children:
+        other_group:
+            children:
+                group_x:
+                    hosts:
+                        test5
+            vars:
+                g2_var2: value3
+            hosts:
+                test4:
+                    ansible_host: 127.0.0.1
+        last_group:
+            hosts:
+                test1
+            vars:
+                last_var: MYVALUE

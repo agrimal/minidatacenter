@@ -40,11 +40,15 @@ virtualenv -p python3 --clear ${DIR}/python-venv
 source ${DIR}/python-venv/bin/activate
 
 # Install required python packages
-pip install \ 
+pip install \
     ansible==$ANSIBLE_VERSION \
-    pylxd==$PYLXD_VERSION \ 
-    netaddr==$NETADDRVERSION \
+    pylxd==$PYLXD_VERSION \
+    netaddr==$NETADDR_VERSION \
     dnspython==$DNSPYTHON_VERSION
+
+# Make symbolic link to easily launch ansible
+rm -f /usr/local/sbin/ansible-playbook-$ANSIBLE_VERSION
+ln -s ${DIR}/python-venv/bin/ansible-playbook /usr/local/sbin/ansible-playbook-$ANSIBLE_VERSION
 
 # Put correct shebang in python scripts
 sed -i "s,%%SHEBANG%%,#!${DIR}/python-venv/bin/python," ${DIR}/scripts/create-containers.py

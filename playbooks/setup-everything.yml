@@ -13,11 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-- name: Execute the tasks relative to localhost
-  hosts: 127.0.0.1
-  connection: local
-  roles:
-    - localhost
+- import_playbook: setup-localhost.yml
 
 - name: Execute the tasks relative to all the containers
   hosts: all

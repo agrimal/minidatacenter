@@ -1,4 +1,4 @@
-%%SHEBANG%%
+#!/opt/minidc/python-venv/bin/python
 #
 # MiniDataCenter Project
 # Copyright 2018 Aurélien Grimal

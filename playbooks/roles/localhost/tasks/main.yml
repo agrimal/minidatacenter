@@ -1,6 +1,142 @@
 ---
-- name: Be sure the ansible working directory exists
+- name: Verify all required packages are installed
+  action: >
+    {{ ansible_pkg_mgr }} name={{ item }} update_cache=yes cache_valid_time=3600
+    state=present
+  with_items:
+    - apt-utils
+    - bash-completion
+    - dnsutils
+    - htop
+    - iftop
+    - man-db
+    - curl
+    - tcpdump
+    - mlocate
+    - net-tools
+    - git
+    - apparmor
+    - apparmor-profiles
+    - apparmor-profiles-extra
+    - apparmor-utils
+    - lxd
+    - lxd-client
+    - lxd-tools
+    - criu
+    - openssh-server
+    - bsdmainutils
+    - dmidecode
+    - hdparm
+    - iptables
+    - iputils-tracepath
+    - lsof
+    - ltrace
+    - manpages
+    - pciutils
+    - rsync
+    - strace
+    - tcpdump
+    - telnet
+    - time
+    - traceroute
+    - vim
+
+- name: Verify all packages are up-to-date
+  apt:
+    upgrade: dist
+
+- name: Copy "/root/.bashrc"
+  copy:
+    src: "{{ role_path }}/files/main_.bashrc"
+    dest: /root/.bashrc
+    owner: root
+    group: root
+    mode: 0644 
+
+- name: Copy "/root/.bash_aliases"
+  copy:
+    src: "{{ role_path }}/files/main_.bash_aliases"
+    dest: /root/.bash_aliases
+    owner: root
+    group: root
+    mode: 0644 
+
+- name: Copy "/root/.vimrc"
+  copy:
+    src: "{{ role_path }}/files/main_.vimrc"
+    dest: /root/.vimrc
+    owner: root
+    group: root
+    mode: 0644 
+
+- name: > 
+    Clone git repo "https://github.com/nathanaelkane/vim-indent-guides.git" into
+    "/root/.vim"
+  git:
+    repo: 'https://github.com/nathanaelkane/vim-indent-guides.git'
+    dest: /root/.vim
+    clone: yes
+    update: yes
+
+- name: Be sure the minidc working directory exists
   file:
-    path: "{{ ansible_working_directory }}"
+    path: "{{ minidc_working_directory }}"
     state: directory
     mode: 0700
+
+# Modify limits in accordance with
+# https://github.com/lxc/lxd/blob/master/doc/production-setup.md
+- name: Modify open files limit in "/etc/systemd/system.conf"
+  replace:
+    path: /etc/systemd/system.conf
+    regexp: '^#?(DefaultLimitNOFILE=).*$'
+    replace: '\g<1>1048576'
+
+- name: Modify memory lock limit in "/etc/systemd/system.conf"
+  replace:
+    path: /etc/systemd/system.conf
+    regexp: '^#?(DefaultLimitMEMLOCK=).*$'
+    replace: '\g<1>unlimited'
+
+- name: Modify system configuration in "/etc/sysctl.d/99-sysctl.conf"
+  blockinfile:
+    path: /etc/sysctl.d/99-sysctl.conf
+    block: |
+      fs.inotify.max_queued_events = 1048576
+      fs.inotify.max_user_instances = 1048576
+      fs.inotify.max_user_watches = 1048576
+      vm.max_map_count = 262144
+      kernel.dmesg_restrict = 1
+
+- name: Disable Ubuntu's Message of the Day
+  replace:
+    path: /etc/default/motd-news
+    regexp: '^#?(ENABLED=).*$'
+    replace: '\g<1>0'
+
+- name: Copy "/etc/profile.d/server_info.sh"
+  copy:
+    src: "{{ role_path }}/files/main_server_info.sh"
+    dest: /etc/profile.d/server_info.sh
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Create ZFS dataset "rpool/lxd" to store containers
+  zfs:
+    name: rpool/lxd
+    state: present
+    canmount: off
+
+- name: Configure network
+  vars:
+    network_config: "{{ { 'network' : network } }}"
+  copy:
+    content: "{{ network_config | to_nice_yaml(indent=4) }}"
+    dest: /etc/netplan/config.yaml
+  register: configure_network_task
+
+- name: Apply new network configuration
+  command: netplan apply
+  when:
+  - configure_network_task.changed
