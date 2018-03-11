@@ -4,21 +4,21 @@
 Description
 ===========
 
-This guide will show you, from the beginning and step by step, how to configure
+This guide will show you, from the beginning and step by step, how to configure  
 your server to be ready to host LXD containers.
 
-We will install Ubuntu 18.04 on a mirrored ZFS volume (equivalent to RAID1) for
-a better availability of the system : with 2 disks, one can break and the system
+We will install Ubuntu 18.04 on a mirrored ZFS volume (equivalent to RAID1) for  
+a better availability of the system : with 2 disks, one can break and the system  
 continue running on the other one.
 
-Warning : mirrored ZFS or RAID1 does not dispend you from backuping your data in
+Warning : mirrored ZFS or RAID1 does not dispend you from backuping your data in  
 a safe place !
 
 Hardware specifications
 =======================
 
-First i will tell you about my hardware configuration, so if you're going to buy
-the hardware soon, maybe it'll give you some idea. Keep in mind that and old
+First i will tell you about my hardware configuration, so if you're going to buy  
+the hardware soon, maybe it'll give you some idea. Keep in mind that and old  
 server or a home computer is just fine to install The Minidatacenter project.
 
 - CPU : Intel Xeon E3 1240v6 (4c/8t) @3,7/3,9 GHz
@@ -29,55 +29,55 @@ server or a home computer is just fine to install The Minidatacenter project.
 - Case : Bitfenix Phenom ITX Black
 - Power Supply : Seasonic 550W Platinum
 
-All of these components fit in a small form-factor (ITX), while their
-performance is still impressive for a home usage.
-The plus here is an IPMI interface on the motherboard, allowing you to take
-control of the server over the network, and load ISO images from a remote
+All of these components fit in a small form-factor (ITX), while their  
+performance is still impressive for a home usage.  
+The plus here is an IPMI interface on the motherboard, allowing you to take  
+control of the server over the network, and load ISO images from a remote  
 computer.
-All the containers are stored directly on the mirrored SSD's.
-ECC memory allow for more stable platform, but this this not really necessary
+All the containers are stored directly on the mirrored SSD's.  
+ECC memory allow for more stable platform, but this this not really necessary  
 at home.
 
-I recommend using at least a dual-core CPU with SMT / Hyperthreading or a quad-
-core without it.
-Concerning the memory, I recommend at least 8 GB because we are using zfs here
+I recommend using at least a dual-core CPU with SMT / Hyperthreading or a quad-  
+core without it.  
+Concerning the memory, I recommend at least 8 GB because we are using zfs here  
 and zfs increases performance at the cost of high memory consumption.
 
 Prerequisites
 =============
 
-This tutorial suppose you already have a DHCP and a DNS in your network.
-The Gateway, also serving as a DNS/DHCP server, has address 192.168.1.1.
+This tutorial suppose you already have a DHCP and a DNS in your network.  
+The Gateway, also serving as a DNS/DHCP server, has address 192.168.1.1.  
 Replace it with yours when needed.
 
 First steps
 ===========
 
-Make a bootable USB key with the Ubuntu 18.04 ISO, or load it with your IPMI
-interface.\
-You can download the ISO on the [Ubuntu website](http://cdimage.ubuntu.com/daily
--live/current/HEADER.html)
+Make a bootable USB key with the Ubuntu 18.04 ISO, or load it with your IPMI  
+interface.  
+You can download the ISO on the
+[Ubuntu website](http://cdimage.ubuntu.com/daily-live/current/HEADER.html).  
 Choose the desktop version because we need the live-CD functionality.
 
 1. Boot the Ubuntu 18.04 ISO and choose `Try ubuntu without installing`.
 
-2. Once you're on the desktop, open a terminal and change to root user
+2. Once you're on the desktop, open a terminal and change to root user.
 ```bash
 sudo su
 ```
 
-3. Install an ssh server and your favorite text editor
+3. Install an ssh server and your favorite text editor.
 ```bash
 apt update
 apt install --yes vim openssh-server
 ```
 
-4. Add a password to the root user
+4. Add a password to the root user. Choose something simple as it's just temporary.
 ```bash
 passwd
 ```
 
-5. Edit the openssh server configuration file `/etc/ssh/sshd_config` and add the\
+5. Edit the openssh server configuration file `/etc/ssh/sshd_config` and add the  
 following line :
 ```
 PermitRootLogin yes
@@ -87,17 +87,16 @@ PermitRootLogin yes
 ```bash
 systemctl reload ssh
 ```
-Now you can connect to your server via SSH from your computer, so you can copy/
-paste the next commands.
+Now you can connect to your server via SSH from your computer, so you can copy /
+paste the next commands.  
+(You can see your IP address with `ip a`)
 
 7. Change repositories
 ```bash
 cat << EOF > /etc/apt/sources.list
 deb http://archive.ubuntu.com/ubuntu/ bionic main restricted universe multiverse
-deb http://security.ubuntu.com/ubuntu/ bionic-security main restricted universe \
-multiverse
-deb http://archive.ubuntu.com/ubuntu/ bionic-updates main restricted universe \
-multiverse
+deb http://security.ubuntu.com/ubuntu/ bionic-security main restricted universe multiverse
+deb http://archive.ubuntu.com/ubuntu/ bionic-updates main restricted universe multiverse
 EOF
 ```
 
@@ -106,16 +105,15 @@ EOF
 apt update
 apt install --yes debootstrap zfs-dkms
 ```
+Read the warning about ZFS and Linux licenses incompatibility and press "OK".  
+Building the ZFS kernel module can take several minutes, be patient.
 
-9. Read the warning about ZFS and Linux licenses incompatibility and press "OK"
-The building of zfs module could take some time, be patient.
-
-10. Load the zfs module
+9. Load the ZFS module
 ```bash
 modprobe zfs
 ```
 
-11. Identify your hard drives and store their path in variables :
+10. Identify your hard drives and store their path in variables :
 ```bash
 ls -l /dev/disk/by-id/
 ```
@@ -130,21 +128,26 @@ FIRST_DISK='/dev/disk/by-id/ata-SanDisk_Ultra_II_240GB_171028800778'
 SECOND_DISK='/dev/disk/by-id/ata-TS240GSSD220S_032272B0D88187210048'
 ```
 
-12. Create the GPT partitions :
-If you already have something installed on the disks, clean them before
+11. Create the GPT partitions :
+If there was something installed on the disks before, delete the old partitions.
 ```bash
 sgdisk --zap-all $FIRST_DISK
 sgdisk --zap-all $SECOND_DISK
 ```
-Then create the partitions
+Then create the new partitions.
 ```bash
 sgdisk -n3:1M:+512M -t3:EF00 $FIRST_DISK 
 sgdisk -n1:0:0 -t1:BF01 $FIRST_DISK
 sgdisk -n3:1M:+512M -t3:EF00 $SECOND_DISK
 sgdisk -n1:0:0 -t1:BF01 $SECOND_DISK
 ```
+If a ZFS pool was configured before, run the following commands :
+```bash
+zpool import -f rpool
+zpool destroy rpool
+```
 
-13. Configure the zfs pool :
+13. Configure the mirrored ZFS pool `rpool` on the 2 hard drives :
 ```bash
 zpool create -f -o ashift=12 -O atime=off -O canmount=off -O compression=lz4 \
     -O normalization=formD -O mountpoint=/ -R /mnt rpool mirror \
