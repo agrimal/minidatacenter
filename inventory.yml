@@ -3,7 +3,7 @@ all:
         localhost:
             # Network configuration of the host
             # This is Netplan syntax
-            # Please read https://wiki.ubuntu.com/Netplan for more information
+            # See https://wiki.ubuntu.com/Netplan for more information
             network:
                 ethernets:
                     eno1:
@@ -30,6 +30,40 @@ all:
                         - 10.10.0.200/24
                         dhcp4: no
                         dhcp6: no
+            # LXD configuration
+            # See https://github.com/lxc/lxd/blob/master/doc/preseed.md for more
+            # information
+            lxd_preseed:
+                config:
+                    core.https_address: 192.168.1.200:8443
+                    core.trust_password: PASSWORD
+                    images.auto_update_interval: 24
+                    images.remote_cache_expiry: 2
+                storage_pools:
+                    - name: lxd
+                        driver: zfs
+                        config:
+                            source: rpool/lxd
+                profiles:
+                    - name: default
+                        devices:
+                            root:
+                                path: /
+                                pool: lxd
+                                type: disk
+                            ethint:
+                                name: ethint
+                                nictype: bridged
+                                parent: br-int
+                                type: nic
+                            ethext:
+                                name: ethext
+                                nictype: bridged
+                                parent: br-ext
+                                type: nic
+                cluster:
+                    server_name: ubusrv01
+                    enabled: true
     vars:
         ansible_python_interpreter: '/usr/bin/env python3'
         minidc_working_directory: '/opt/minidc_secrets'
