@@ -209,7 +209,7 @@ cat << EOF > /mnt/etc/netplan/config.yaml
 network:
     ethernets:
         eno1:
-            dhcp4: no
+            dhcp4: yes
             dhcp6: no
         eno2:
             dhcp4: no
