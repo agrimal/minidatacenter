@@ -30,6 +30,9 @@ all:
                         - 10.10.0.200/24
                         dhcp4: no
                         dhcp6: no
+            # Change this to False if you don't want to run 'lxd init' each time
+            # you run the playbook 
+            lxd_init: True
             # LXD configuration
             # See https://github.com/lxc/lxd/blob/master/doc/preseed.md for more
             # information
@@ -40,30 +43,27 @@ all:
                     images.auto_update_interval: 24
                     images.remote_cache_expiry: 2
                 storage_pools:
-                    - name: lxd
-                        driver: zfs
-                        config:
-                            source: rpool/lxd
+                  - name: lxd
+                    driver: zfs
+                    config:
+                        source: rpool/lxd
                 profiles:
-                    - name: default
-                        devices:
-                            root:
-                                path: /
-                                pool: lxd
-                                type: disk
-                            ethint:
-                                name: ethint
-                                nictype: bridged
-                                parent: br-int
-                                type: nic
-                            ethext:
-                                name: ethext
-                                nictype: bridged
-                                parent: br-ext
-                                type: nic
-                cluster:
-                    server_name: ubusrv01
-                    enabled: true
+                  - name: default
+                    devices:
+                        root:
+                            path: /
+                            pool: lxd
+                            type: disk
+                        ethint:
+                            name: ethint
+                            nictype: bridged
+                            parent: br-int
+                            type: nic
+                        ethext:
+                            name: ethext2
+                            nictype: bridged
+                            parent: br-ext
+                            type: nic
     vars:
         ansible_python_interpreter: '/usr/bin/env python3'
         minidc_working_directory: '/opt/minidc_secrets'

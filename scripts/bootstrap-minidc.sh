@@ -20,7 +20,8 @@ DIR="$(cd "$(dirname "$0")/.."; pwd)"
 
 # Packages version
 ANSIBLE_VERSION="2.4.3.0"
-PYLXD_VERSION="2.2.4"
+#PYLXD_VERSION="2.2.4"
+PYLXD_VERSION="2.2.6"
 NETADDR_VERSION="0.7.19"
 DNSPYTHON_VERSION="1.15.0"
 

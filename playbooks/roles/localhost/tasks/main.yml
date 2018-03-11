@@ -140,3 +140,17 @@
   command: netplan apply
   when:
   - configure_network_task.changed
+
+- name: Initialize LXD lightervisor
+  vars:
+    lxd_preseed_config: "{{ lxd_preseed | to_nice_yaml(indent=2) }}"
+  shell: echo -e "{{ lxd_preseed_config }}" | lxd init --preseed
+  register: lxd_init_task
+
+- debug:
+    var: lxd_preseed_config
+
+- debug:
+    var: lxd_init_task
+
+
