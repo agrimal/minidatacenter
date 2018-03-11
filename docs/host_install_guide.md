@@ -244,7 +244,7 @@ update-locale LANG=en_US.UTF-8
 ```bash
 apt update
 apt install --yes --no-install-recommends linux-image-generic
-apt install --yes zfs-initramfs dosfstools grub-efi-amd64 openssh-server
+apt install --yes zfs-initramfs dosfstools grub-efi-amd64 openssh-server git
 ```
 
 25. Modify the way /var/log and /var/tmp are mounted
