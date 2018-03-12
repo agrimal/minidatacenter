@@ -1,2 +1,3 @@
-.gitignore
 /python-venv
+inventory.yml
+config.yml

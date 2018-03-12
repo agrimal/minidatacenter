@@ -16,11 +16,11 @@
 - import_playbook: setup-localhost.yml
 
 - name: Execute the tasks relative to all the containers
-  hosts: all
+  hosts: containers
   remote_user: root
   roles:
     - common
 
-- import_playbook: setup-ca.yml
-- import_playbook: setup-dns.yml
+#- import_playbook: setup-ca.yml
+#- import_playbook: setup-dns.yml
 #- include: setup-dhcp.yml

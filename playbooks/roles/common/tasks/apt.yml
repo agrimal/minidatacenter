@@ -13,3 +13,4 @@
       - tcpdump
       - mlocate
       - net-tools
+      - openssh-server

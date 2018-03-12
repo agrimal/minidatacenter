@@ -6,6 +6,7 @@
     line: '\g<1>0'
     state: present
     backrefs: yes
+
 - name: Deactivate Message of the day systemd timer
   systemd:
     name: motd-news.timer

@@ -1,14 +1,45 @@
 ---
-# main.yml
+- name: Configure network
+  vars:
+    network_config: "{{ { 'network' : network } }}"
+  copy:
+    content: "{{ network_config | to_nice_yaml(indent=4) }}"
+    dest: /etc/netplan/config.yaml
+  register: configure_network_task
+
+- name: Delete "/etc/netplan/10-lxc.yaml"
+  file:
+    path: /etc/netplan/10-lxc.yaml
+    state: absent
+
+- name: Apply new network configuration
+  command: netplan apply
+  when:
+  - configure_network_task.changed
+
+- name: Verify "/root/.ssh" directory exists
+  file:
+    path: /root/.ssh
+    state: directory
+    mode: 0700
+
+- name: Copy root's SSH key into the container
+  copy:
+    src: "/root/.ssh/id_ed25519.pub"
+    dest: "/root/.ssh/authorized_keys"
+    owner: root
+    group: root
+    mode: 0644
+
 - include_tasks: rsyslog.yml
 - include_tasks: logrotate.yml
 - include_tasks: motd.yml
 - include_tasks: systemd-resolved.yml
 - include_tasks: apt.yml
 
-- name: Set timezone to {{ containers_timezone }}
+- name: Set timezone to "{{ local_timezone }}"
   timezone:
-    name: "{{ containers_timezone }}"
+    name: "{{ local_timezone }}"
 
 - name: Copy /root/.bashrc
   copy:
@@ -26,10 +57,10 @@
     group: root
     mode: 0644
 
-- name: Copy /etc/ldap/ldap.conf
-  template:
-    src: "{{ role_path }}/templates/ldap_ldap.conf.j2"
-    dest: /etc/ldap/ldap.conf
-    owner: root 
-    group: root
-    mode: 0644
+#- name: Copy /etc/ldap/ldap.conf
+#  template:
+#    src: "{{ role_path }}/templates/ldap_ldap.conf.j2"
+#    dest: /etc/ldap/ldap.conf
+#    owner: root 
+#    group: root
+#    mode: 0644

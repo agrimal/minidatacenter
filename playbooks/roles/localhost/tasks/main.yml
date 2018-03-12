@@ -45,6 +45,14 @@
   apt:
     upgrade: dist
 
+- name: Copy "/root/.profile"
+  copy:
+    src: "{{ role_path }}/files/main_.profile"
+    dest: /root/.profile
+    owner: root
+    group: root
+    mode: 0644 
+
 - name: Copy "/root/.bashrc"
   copy:
     src: "{{ role_path }}/files/main_.bashrc"
@@ -122,12 +130,6 @@
     group: root
     mode: 0644
 
-- name: Create ZFS dataset "rpool/lxd" to store containers
-  zfs:
-    name: rpool/lxd
-    state: present
-    canmount: off
-
 - name: Configure network
   vars:
     network_config: "{{ { 'network' : network } }}"
@@ -141,16 +143,62 @@
   when:
   - configure_network_task.changed
 
+- name: Verify if LXD profile "default" exists
+  command: lxc profile show default
+  register: lxc_profile_show_default_task
+  changed_when: False
+  failed_when: False
+
+- name: Delete LXD profile "default"
+  command: lxc profile delete default
+  when:
+  - lxd_init
+  - lxc_profile_show_default_task.rc == 0
+
+- name: Verify if LXD storage "lxd" exists
+  command: lxc storage show lxd
+  register: lxc_storage_show_lxd_task
+  changed_when: False
+  failed_when: False
+
+- name: Delete LXD storage "lxd"
+  command: lxc storage delete lxd
+  when:
+  - lxd_init
+  - lxc_storage_show_lxd_task.rc == 0
+
 - name: Initialize LXD lightervisor
   vars:
     lxd_preseed_config: "{{ lxd_preseed | to_nice_yaml(indent=2) }}"
   shell: echo -e "{{ lxd_preseed_config }}" | lxd init --preseed
   register: lxd_init_task
+  when: lxd_init
 
-- debug:
-    var: lxd_preseed_config
+- name: Generate SSH key for root user
+  user:
+    name: root
+    generate_ssh_key: yes
+    ssh_key_type: ed25519
+    ssh_key_comment: root@{{ inventory_hostname }}
 
-- debug:
-    var: lxd_init_task
+- name: Configure TimeZone
+  timezone:
+    name: "{{ local_timezone }}"
 
-
+- name: Create and start the containers
+  lxd_container:
+    name: "{{ item }}"
+    architecture: x86_64
+    ephemeral: 'false'
+    state: started
+    source:
+        type: "{{ hostvars[item]['source_type'] }}"
+        mode: "{{ hostvars[item]['source_mode'] }}"
+        server: "{{ hostvars[item]['source_server'] }}"
+        protocol: "{{ hostvars[item]['source_protocol'] }}"
+        alias: "{{ hostvars[item]['source_alias'] }}"
+    profiles: "{{ hostvars[item]['lxd_profiles'] }}"
+    wait_for_ipv4_addresses: false
+    timeout: 30
+    config: "{{ hostvars[item]['lxd_config'] }}"
+  with_items: "{{ groups.containers }}"
