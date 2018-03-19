@@ -1,0 +1,34 @@
+---
+- name: Copy "/etc/rsyslog.d/50-default.conf" where local0 logging is disabled in "/var/log/syslog"
+  copy:
+    src: "{{ role_path }}/files/rsyslog_50-default.conf"
+    dest: /etc/rsyslog.d/50-default.conf
+    owner: root
+    group: root
+    mode: 0644
+  register: modify_50_default_conf_task
+
+- name: Configure logging local0 (dhcpd) in "/var/log/dhcpd/dhcpd.log"
+  copy:
+    src: "{{ role_path }}/files/rsyslog_99-dhcpd.conf"
+    dest: /etc/rsyslog.d/99-dhcpd.conf
+    owner: root
+    group: root
+    mode: 0644
+  register: create_99_dhcpd_conf_task
+
+- name: Verify that "/var/log/dhcpd" directory exists
+  file:
+    path: /var/log/dhcpd
+    state: directory
+    owner: syslog
+    group: syslog
+    mode: 0755
+
+- name: Restart rsyslog service
+  systemd:
+    name: rsyslog
+    state: restarted
+  when:
+    - modify_50_default_conf_task.changed or
+      create_99_dhcpd_conf_task.changed

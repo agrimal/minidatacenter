@@ -7,29 +7,26 @@ all:
             network:
                 ethernets:
                     eno1:
-                        dhcp4: no
-                        dhcp6: no
+                        dhcp4: false
                     eno2:
-                        dhcp4: no
-                        dhcp6: no
+                        dhcp4: false
                 bridges:
                     br-ext:
                         addresses:
                         - 192.168.1.200/24
                         gateway4: 192.168.1.1
+                        routes:
+                        - to: 0.0.0.0/0
+                          via: 192.168.1.1
                         nameservers:
                             addresses:
                             - 192.168.1.201
                             - 192.168.1.1
                         interfaces:
                         - eno1
-                        dhcp4: no
-                        dhcp6: no
                     br-int:
                         addresses:
                         - 10.10.0.200/24
-                        dhcp4: no
-                        dhcp6: no
             # Change this to False if you don't want to run 'lxd init' each time
             # you run the playbook 
             lxd_init: False
@@ -71,9 +68,12 @@ all:
         pipelining: True
         minidc_working_directory: '/opt/minidc_secrets'
         local_timezone: 'Europe/Paris'
+        ansible_port: 22
+
     children:
         containers:
             vars:
+                ansible_renew_all: False
                 source_server: 'https://images.linuxcontainers.org'
                 source_type: 'image'
                 source_protocol: 'simplestreams'
@@ -85,59 +85,169 @@ all:
                     limits.cpu: '2'
                     limits.memory: '2GB'
                     boot.autostart: 'true'
-                ansible_connection: 'lxd'
+                ansible_connection: 'ssh'
+                ca_cert_dir: '/etc/ssl/certs'
+                ca_cert_file: 'ca.crt'
+                dns_tsig_key_name: 'tsig-key'
+                dns_tsig_key_algorithm: 'HMAC-SHA512'
             hosts:
-                ubudns03:
-                    network:
-                        ethernets:
-                            ethint:
-                                dhcp4: false
-                                dhcp6: false
-                                addresses:
-                                - 10.10.0.201/24
-                            ethext:
-                                dhcp4: false
-                                dhcp6: false
-                                addresses:
-                                - 192.168.1.201/24
-                                gateway4: 192.168.1.1
-                                nameservers:
-                                    addresses:
-                                    - 127.0.0.1
-                                    - 192.168.1.1
-                ubudhcp03:
-                    network:
-                        ethernets:
-                            ethint:
-                                dhcp4: false
-                                dhcp6: false
-                                addresses:
-                                - 10.10.0.202/24
-                            ethext:
-                                dhcp4: false
-                                dhcp6: false
-                                addresses:
-                                - 192.168.1.202/24
-                                gateway4: 192.168.1.1
-                                nameservers:
-                                    addresses:
-                                    - 192.168.1.201
-                                    - 192.168.1.1
+
                 ubuca03:
                     network:
                         ethernets:
                             ethint:
-                                dhcp4: false
-                                dhcp6: false
-                                addresses:
-                                - 10.10.0.203/24
+                                addresses: ['10.10.0.203/24']
                             ethext:
-                                dhcp4: false
-                                dhcp6: false
-                                addresses:
-                                - 192.168.1.203/24
+                                addresses: ['192.168.1.203/24']
                                 gateway4: 192.168.1.1
+                                routes:
+                                - to: 0.0.0.0/0
+                                  via: 192.168.1.1
+                                nameservers:
+                                    addresses: ['192.168.1.201', '192.168.1.1']
+                    ansible_host: 10.10.0.203
+                    ca_organisation: 'Tech-Tips'
+                    ca_ou: 'tech-tips.fr'
+                    ca_country: 'FR' # This one can only be the 2 letters code of your country
+                    ca_province: 'Ile-de-France'
+                    ca_city: 'Paris'
+                    ca_email: 'admin@tech-tips.fr'
+                    ca_easy_rsa_install_dir: '/etc/easy-rsa'
+                    ca_key_size: '2048'
+                    ca_ca_expire: '3650'
+                    ca_key_expire: '3650'
+                    ca_certificates:
+                        servers:
+                        - 'vpn.tech-tips.fr'
+                        - 'ldap.tech-tips.home'
+                        clients:
+                        - 'client01'
+                        - 'client02'
+                        - 'client03'
+
+                ubudns03:
+                    network:
+                        ethernets:
+                            ethint:
+                                addresses:
+                                - 10.10.0.201/24
+                            ethext:
+                                addresses:
+                                - 192.168.1.201/24
+                                gateway4: 192.168.1.1
+                                routes:
+                                - to: 0.0.0.0/0
+                                  via: 192.168.1.1
                                 nameservers:
                                     addresses:
-                                    - 192.168.1.201
+                                    - 127.0.0.1
                                     - 192.168.1.1
+                    ansible_host: 10.10.0.201
+                    dns_master_zones:
+                        forward:
+                        - name: 'tech-tips.fr'
+                          ns_a_record: 'dns.tech-tips.fr'
+                          ns_ip: '192.168.1.201'
+                          ns_contact: 'admin'
+                          a_records:
+                          - ['ubudns03',  '192.168.1.201']
+                          - ['ubudhcp03', '192.168.1.202']
+                          - ['ubuca03',   '192.168.1.203']
+                          txt_records:
+                          - ['ubudns03',  '"Test TXT record"']
+                        - name: 'tech-tips.home'
+                          ns_a_record: 'dns.tech-tips.home'
+                          ns_ip: '192.168.1.201'
+                          ns_contact: 'admin'
+                          a_records: []
+                          txt_records: []
+                        - name: 'tech-tips.private'
+                          ns_a_record: 'dns.tech-tips.private'
+                          ns_ip: '10.10.0.201'
+                          ns_contact: 'admin'
+                          a_records:
+                          - ['ubudns03',  '10.10.0.201']
+                          - ['ubudhcp03', '10.10.0.202']
+                          - ['ubuca03',   '10.10.0.203']
+                          txt_records: []
+                        reverse:
+                        - subnet: '192.168.1.0/24'
+                          ns_url: 'dns.tech-tips.fr'
+                          ns_contact: 'admin'
+                          ptr_records:
+                          - ['ubudns03.tech-tips.fr',  '192.168.1.201']
+                          - ['ubudhcp03.tech-tips.fr', '192.168.1.202']
+                          - ['ubuca03.tech-tips.fr',   '192.168.1.203']
+                        - subnet: '10.10.0.0/16'
+                          ns_url: 'dns.tech-tips.private'
+                          ns_contact: 'admin'
+                          ptr_records:
+                          - ['ubudns03.tech-tips.private',  '10.10.0.201']
+                          - ['ubudhcp03.tech-tips.private', '10.10.0.202']
+                          - ['ubuca03.tech-tips.private',   '10.10.0.203']
+                    dns_clients:
+                    - { 'Clients' : '192.168.1.0/24' }
+                    dns_admins:
+                    - { 'DHCP container' : '10.10.0.202/32' }
+                    dhcp_pairs:
+                    - 'ubudhcp03'
+
+                ubudhcp03:
+                    network:
+                        ethernets:
+                            ethint:
+                                addresses: ['10.10.0.202/24']
+                            ethext:
+                                addresses: ['192.168.1.202/24']
+                                gateway4: '192.168.1.1'
+                                routes:
+                                - to: '0.0.0.0/0'
+                                  via: '192.168.1.1'
+                                nameservers:
+                                    addresses: ['192.168.1.201', '192.168.1.1']
+                    ansible_host: '10.10.0.202'
+                    dhcp_listen_interfaces: ['ethext']
+                    dhcp_default_lease_time: '14400'
+                    dhcp_max_lease_time: '86400'
+                    dns_pairs_config:
+                    - server: 'ubudns03'
+                      dhcp_forward_zones:
+                      - name: 'tech-tips.home'
+                        dns_ip: '10.10.0.201'
+                      dhcp_reverse_zones:
+                      - subnet: '192.168.1.0/24'
+                        dns_ip: '10.10.0.201'
+                      subnets:
+                      - network: '192.168.1.0/24'
+                        range: '192.168.1.215 192.168.1.240'
+                        gateway: '192.168.1.1'
+                        dns_servers: ['192.168.1.201','192.168.1.1']
+                        ddns_domain: 'tech-tips.home'
+                        ddns_reverse: True
+                      - network: '192.168.2.0/24'
+                        range: '192.168.2.215 192.168.2.240'
+                        gateway: '192.168.2.1'
+                        dns_servers: ['192.168.2.201','192.168.2.1']
+                        ddns_domain: 'tech-tips.perso'
+                        ddns_reverse: True
+                uburvprx03:
+                    network:
+                        ethernets:
+                            ethint:
+                                addresses: ['10.10.0.204/24']
+                            ethext:
+                                addresses: ['192.168.1.204/24']
+                                gateway4: '192.168.1.1'
+                                routes:
+                                - to: '0.0.0.0/0'
+                                  via: '192.168.1.1'
+                                nameservers:
+                                    addresses: ['192.168.1.201', '192.168.1.1']
+                    ansible_host: '10.10.0.204'
+                    sslh_listen_interface: 'ethext'
+                    sslh_listen_ip: '192.168.1.204'
+                    sslh_listen_port: 443
+                    sslh_openvpn_redirect_port: 1194
+                    sslh_ssl_redirect_port: 4443
+                    vpn_listen_ip: '192.168.1.205'
+                    vpn_listen_port: 443

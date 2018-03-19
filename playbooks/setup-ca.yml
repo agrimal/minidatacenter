@@ -13,7 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 - name: Install Certificate Authority server
-  hosts: ca_hosts
+  vars:
+    ansible_connection: ssh
+  hosts: ubuca03
   remote_user: root
   roles:
     - ca

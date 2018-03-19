@@ -1,0 +1,8 @@
+---
+- name: Configure logrotate for bind
+  copy:
+    src: "{{ role_path }}/files/logrotate_bind9"
+    dest: /etc/logrotate.d/bind9
+    owner: root
+    group: root
+    mode: 0644

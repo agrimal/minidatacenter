@@ -1,0 +1,4 @@
+key "{{ dns_tsig_key_name }}" {
+    algorithm {{ dns_tsig_key_algorithm }};
+    secret "{{ dns_tsig_key_secret }}";
+};

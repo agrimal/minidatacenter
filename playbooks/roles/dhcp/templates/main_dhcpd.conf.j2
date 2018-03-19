@@ -1,0 +1,58 @@
+# /etc/dhcp/dhcpd.conf
+#
+
+authoritative;
+log-facility local0;
+ddns-updates on;
+ddns-update-style interim;
+ignore client-updates;
+ping-check true;
+ping-timeout 1;
+default-lease-time {{ dhcp_default_lease_time }};
+max-lease-time {{ dhcp_max_lease_time }};
+
+{% for pair_dns in dns_pairs_config %}
+
+include "/etc/dhcp/tsig_key_{{ pair_dns.server }}";
+
+{% for forward_zone in pair_dns.dhcp_forward_zones %}
+{% for dns_zone in hostvars[pair_dns.server].dns_master_zones.forward %}
+{% if forward_zone.name == dns_zone.name %}
+zone {{ forward_zone.name }}. {
+    primary {{ forward_zone.dns_ip }};
+    key {{ hostvars[pair_dns.server]['dns_tsig_key_name'] }};
+}
+
+{% endif %}
+{% endfor %}
+{% endfor %}
+{% for reverse_zone in pair_dns.dhcp_reverse_zones %}
+{% if 1 < reverse_zone.subnet | ipaddr('prefix') < 9 %}
+zone {{ reverse_zone.subnet | ipaddr('revdns') | regex_replace( '^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.', '') }} {
+{% elif 8 < reverse_zone.subnet | ipaddr('prefix') < 17 %}
+zone {{ reverse_zone.subnet | ipaddr('revdns') | regex_replace( '^\\d{1,3}\\.\\d{1,3}\\.', '') }} {
+{% else %}
+zone {{ reverse_zone.subnet | ipaddr('revdns') | regex_replace( '^\\d{1,3}\\.', '') }} {
+{% endif %}
+    primary {{ reverse_zone.dns_ip }};
+    key {{ hostvars[pair_dns.server]['dns_tsig_key_name'] }};
+}
+
+{% endfor %}
+{% for network in pair_dns.subnets %}
+subnet {{ network.network | regex_replace('^(.*)/[0-9]+$', '\\1') }} netmask {{ network.network | ipaddr('netmask') }} {
+    range {{ network.range }};
+    {% if network.gateway -%}
+    option routers {{ network.gateway }};
+    {% endif -%}
+    option domain-name-servers {{ network.dns_servers | join(', ') }};
+    option domain-name "{{ network.ddns_domain }}";
+    ddns-domainname "{{ network.ddns_domain }}.";
+    {% if network.ddns_reverse -%}
+    ddns-rev-domainname "in-addr.arpa.";
+    {% endif -%}
+}
+
+{% endfor -%}
+
+{% endfor %}

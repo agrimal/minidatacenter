@@ -130,6 +130,14 @@
     group: root
     mode: 0644
 
+- name: Make a symlink from "/etc/profile.d/server_info.sh" to "/usr/local/sbin/server_info.sh"
+  file:
+    src: /etc/profile.d/server_info.sh
+    dest: /usr/local/sbin/server_info.sh
+    state: link
+    owner: root
+    group: root
+
 - name: Configure network
   vars:
     network_config: "{{ { 'network' : network } }}"

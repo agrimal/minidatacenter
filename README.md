@@ -15,11 +15,11 @@ containers, using Ansible, an automation tool, with the following roles :
 Implemented :
 - [x] Certificate Authority
 - [x] DNS Server
+- [x] DHCP Server
 
 Coming soon :
-- [ ] DHCP Server
-- [ ] VPN Server
 - [ ] Reverse Proxy Server
+- [ ] VPN Server
 - [ ] LDAP Server
 - [ ] LAM (LDAP Account Manager) Server
 - [ ] Cyrus Server (mail)

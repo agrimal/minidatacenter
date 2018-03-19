@@ -1,0 +1,12 @@
+[Unit]
+Description=Modify ip parameters for sslh --transparent mode
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/ip rule add fwmark 0x1 lookup 100
+ExecStart=/bin/ip route add local 0.0.0.0/0 dev lo table 100
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

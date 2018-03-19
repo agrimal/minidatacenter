@@ -62,7 +62,7 @@
     group: root
     mode: 0644
 
-# Delete every key and certificate if ansible_renew_all is set to True in config.yml
+# Delete every key and certificate if ansible_renew_all is set to True in inventory.yml
 - name: Clean all previously generated keys and certificates
   shell: . vars && ./clean-all
   args:
@@ -83,7 +83,7 @@
 - set_fact:
     files_in_keys_directory: "{{ find_result_ca_easy_rsa_install_dir_keys.files | map(attribute='path') | list }}"
 
-# Only generate if ca.crt or ca.key are not in ca_easy_rsa_install_dir/keys
+# Only generate if ca.crt, ca.key or index.txt are not in ca_easy_rsa_install_dir/keys
 - name: Generate the CA private key and certificate
   shell: source vars && ./clean-all && ./pkitool --initca
   args:
@@ -103,7 +103,7 @@
   when:
     - (ca_easy_rsa_install_dir + "/keys/dh" + ca_key_size + ".pem") not in files_in_keys_directory
   register: diffie_hellman_generation
-# The following doesn't work as of ansible 2.4.3, have to have for 2.4.4 where bug is fixed.
+# The following doesn't work as of ansible 2.4.3, have to wait for 2.4.4 where bug is fixed.
 #  async: 300
 #  poll: 5
 
@@ -167,10 +167,10 @@
 #  retries: 30
 
 # Copy all keys and certificates on localhost
-- name: Copy keys and certificates on localhost in "{{ ansible_working_directory }}"
+- name: Copy keys and certificates on localhost in "{{ minidc_working_directory }}"
   fetch:
     src: "{{ ca_easy_rsa_install_dir }}/keys/{{ item }}"
-    dest: "{{ ansible_working_directory }}"
+    dest: "{{ minidc_working_directory }}"
   with_items:
     - "{{ ca_certificates.clients | map('regex_replace', '^(.*)$', '\\1.crt') | list }}"
     - "{{ ca_certificates.clients | map('regex_replace', '^(.*)$', '\\1.key') | list }}"
@@ -183,5 +183,5 @@
 - name: Copy CRL (Certificates Revoke List) if there is one
   fetch:
     src: "{{ ca_easy_rsa_install_dir }}/keys/crl.pem"
-    dest: "{{ ansible_working_directory }}"
+    dest: "{{ minidc_working_directory }}"
     fail_on_missing: no

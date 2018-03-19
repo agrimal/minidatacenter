@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 - name: Install Domain Name Server servers
-  hosts: dns_hosts
+  hosts: ubudns03
   remote_user: root
   roles:
     - dns

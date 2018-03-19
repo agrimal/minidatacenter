@@ -12,19 +12,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-- import_playbook: setup-localhost.yml
-
-- name: Execute the tasks relative to all the containers
-  vars:
-    ansible_connection: 'lxd'
-    ansible_host: "{{ inventory_hostname }}"
-  hosts: containers
+- name: Install Reverse Proxy servers
+  hosts: uburvprx03
   remote_user: root
   roles:
-    - common
-
-- import_playbook: setup-ca.yml
-- import_playbook: setup-dns.yml
-- import_playbook: setup-dhcp.yml
-- import_playbook: setup-rvprx.yml
+    - rvprx
