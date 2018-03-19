@@ -1,0 +1,6 @@
+/var/log/openvpn.log {
+        daily
+        rotate 30
+        missingok
+        ifempty
+}

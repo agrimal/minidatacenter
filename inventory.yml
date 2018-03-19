@@ -88,6 +88,7 @@ all:
                 ansible_connection: 'ssh'
                 ca_cert_dir: '/etc/ssl/certs'
                 ca_cert_file: 'ca.crt'
+                ca_private_dir: '/etc/ssl/private'
                 dns_tsig_key_name: 'tsig-key'
                 dns_tsig_key_algorithm: 'HMAC-SHA512'
             hosts:
@@ -249,5 +250,27 @@ all:
                     sslh_listen_port: 443
                     sslh_openvpn_redirect_port: 1194
                     sslh_ssl_redirect_port: 4443
-                    vpn_listen_ip: '192.168.1.205'
+                    vpn_listen_ip: '10.10.0.205'
                     vpn_listen_port: 443
+                ubuvpn03:
+                    network:
+                        ethernets:
+                            ethint:
+                                addresses: ['10.10.0.205/24']
+                            ethext:
+                                addresses: ['192.168.1.205/24']
+                                gateway4: '192.168.1.1'
+                                routes:
+                                - to: '0.0.0.0/0'
+                                  via: '192.168.1.1'
+                                nameservers:
+                                    addresses: ['192.168.1.201', '192.168.1.1']
+                    ansible_host: '10.10.0.205'
+                    vpn_listen_ip: '10.10.0.205'
+                    vpn_listen_port: 443
+                    vpn_protocol: 'tcp'
+                    vpn_device: 'tun'
+                    ca_server: 'ubuca03'
+                    vpn_server_url: 'vpn.tech-tips.fr'
+                    vpn_subnet: '10.8.0.0/24'
+                    vpn_push_dns: ['192.168.1.201', '192.168.1.1']

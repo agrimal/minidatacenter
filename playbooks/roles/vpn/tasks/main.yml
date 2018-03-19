@@ -1,0 +1,818 @@
+---
+- name: Update repositories cache and install packages
+  action: >
+    {{ ansible_pkg_mgr }} name={{ item }} update_cache=yes cache_valid_time=3600 state=present
+  with_items:
+    - openvpn
+    - iptables
+    - iptables-persistent
+  register: apt_install_task
+
+- name: Generate "/etc/openvpn/server.conf"
+  template:
+    src: "{{ role_path }}/templates/main_server.conf.j2"
+    dest: /etc/openvpn/server.conf
+    owner: root
+    group: root
+    mode: 0644
+  register: modify_etc_openvpn_server_conf_task
+
+- name: Copy server certificates and keys
+  copy:
+    src: "{{ minidc_working_directory }}/{{ ca_server }}/{{ hostvars[ca_server]['ca_easy_rsa_install_dir'] }}/keys/{{ item.0 }}"
+    dest: "{{ item.1 }}/{{ item.0 }}"
+    owner: root
+    group: root
+    mode: "{{ item.2 }}"
+  with_together:
+  - ["{{ ca_cert_file }}", "{{ vpn_server_url }}.crt", "{{ vpn_server_url }}.key", "dh{{ hostvars[ca_server]['ca_key_size'] }}.pem"]
+  - ["{{ ca_cert_dir }}" , "{{ ca_cert_dir }}"       , "{{ ca_private_dir }}"    , "{{ ca_private_dir }}"]
+  - ["0644"              , "0644"                    , "0600"                    , "0600"]
+  register: copy_server_certs_and_keys_task
+
+# Only necessary for bridged mode, not used for the moment, maybe will come in a future version
+- name: Copy unit file "/etc/systemd/system/promiscuous@.service" for promiscuous@ service
+  copy:
+    src: "{{ role_path }}/files/main_promiscuous@.service"
+    dest: /etc/systemd/system/promiscuous@.service
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Copy "/etc/rsyslog.d/01-openvpn.conf"
+  copy:
+    src: "{{ role_path }}/files/main_01-openvpn.conf"
+    dest: /etc/rsyslog.d/01-openvpn.conf
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Copy "/etc/logrotate.d/openvpn"
+  copy:
+    src: "{{ role_path }}/files/main_openvpn"
+    dest: /etc/logrotate.d/openvpn
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Be sure the directory "/etc/systemd/system/openvpn@server.service.d" exists
+  file:
+    path: /etc/systemd/system/openvpn@server.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Copy "/etc/systemd/system/openvpn@server.service.d/override.conf"
+  copy:
+    src: "{{ role_path }}/files/main_override.conf"
+    dest: /etc/systemd/system/openvpn@server.service.d/override.conf
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Start openvpn@server service
+  systemd:
+    name: openvpn@server
+    state: started
+    enabled: yes
+    daemon_reload: yes
+
+#- name: Restart sslh_ip_params service
+#  systemd:
+#    name: sslh_ip_params
+#    state: restarted
+#    daemon_reload: yes
+#  when:
+#    - create_unit_file_for_sslh_ip_params_service_task.changed
+#
+#- name: Be sure sslh and sslh_ip_params services are started and enabled
+#  systemd:
+#    name: "{{ item }}"
+#    state: started
+#    enabled: yes
+#  with_items:
+#    - sslh
+#    - sslh_ip_params
+#
+#- name: Generate "/etc/iptables/rules.v4"
+#  template:
+#    src: "{{ role_path }}/templates/main_rules.v4.j2"
+#    dest: /etc/iptables/rules.v4
+#    owner: root
+#    group: root
+#    mode: 0644
+#  register: modify_etc_iptables_rules_v4_task
+#
+#- name: Apply iptables rules
+#  command: iptables-restore /etc/iptables/rules.v4
+#  when:
+#    - modify_etc_iptables_rules_v4_task.changed
+#
+#- name: Generate "/etc/nginx/nginx.conf"
+#  template:
+#    src: "{{ role_path }}/templates/main_nginx.conf.j2"
+#    dest: /etc/nginx/nginx.conf
+#    owner: root
+#    group: root
+#    mode: 0644
+#  register: modify_etc_nginx_conf_task
+#
+#- name: Restart nginx service
+#  systemd:
+#    name: nginx
+#    state: restarted
+#  when:
+#    - modify_etc_nginx_conf_task.changed
+
+#- name: Verify that the "/var/log/bind" directory exists
+#  file:
+#    path: /var/log/bind
+#    state: directory
+#    mode: 0755
+#    owner: bind
+#    group: bind
+#
+#- name: Disable and stop the nx_conf_tasksystemd-resolved service
+#  systemd:
+#    name: systemd-resolved
+#    state: stopped
+#    enabled: no
+#
+#- name: Modify "/etc/resolv.conf"
+#  template:
+#    src: "{{ role_path }}/templates/main_resolv.conf.j2"
+#    dest: /etc/resolv.conf
+#    owner: root
+#    group: root
+#    mode: 0644
+#
+#- name: Verify that the "/etc/bind" directory exists
+#  file:
+#    path: /etc/bind
+#    state: directory
+#    mode: 0755
+#    owner: bind
+#    group: root
+#
+## need dns_clients, dns_admins
+#- name: Generate the "/etc/bind/named.conf.options" file
+#  template:
+#    src: "{{ role_path }}/templates/main_named.conf.options.j2"
+#    dest: /etc/bind/named.conf.options
+#    owner: root
+#    group: bind
+#    mode: 0644
+#  register: etc_bind_named_conf_options_task
+#
+#- name: Copy the "/etc/bind/named.conf.logs" file
+#  copy:
+#    src: "{{ role_path }}/files/main_named.conf.logs"
+#    dest: /etc/bind/named.conf.logs
+#    owner: root
+#    group: bind
+#    mode: 0644
+#  register: etc_bind_named_conf_logs_task
+#
+#- name: Copy the "/etc/bind/named.conf" file
+#  copy:
+#    src: "{{ role_path }}/files/main_named.conf"
+#    dest: "/etc/bind/named.conf"
+#    owner: root
+#    group: bind
+#    mode: 0644
+#  register: etc_bind_named_conf_task
+#
+## localhost
+#- name: Check if "{{ minidc_working_directory }}/{{ inventory_hostname }}/etc/bind" exists on localhost
+#  local_action:
+#    module: stat
+#    path: "{{ minidc_working_directory }}/{{ inventory_hostname }}/etc/bind"
+#  register: local_etc_bind
+#
+## localhost
+#- name: Find "*.key" and "*.private" files in "{{ minidc_working_directory }}/{{ inventory_hostname }}/etc/bind" on localhost
+#  local_action:
+#    module: find
+#    path: "{{ minidc_working_directory }}/{{ inventory_hostname }}/etc/bind/"
+#    use_regex: yes
+#    patterns: '^K.*\.(key|private)$'
+#    recurse: no
+#  when:
+#    - not ansible_renew_all 
+#    - local_etc_bind.stat.exists
+#  register: local_etc_bind_find_result
+#
+#- name: Find "*.key" and "*.private" files in "/etc/bind"
+#  find:
+#    path: /etc/bind
+#    use_regex: yes
+#    patterns: '^K.*\.(key|private)$'
+#    recurse: no
+#  register: remote_etc_bind_find_result
+#
+## localhost
+#- name: Generate the list of "*.key" and "*.private" files in "{{ minidc_working_directory }}/{{ inventory_hostname }}/etc/bind" on localhost
+#  set_fact:
+#    local_tsig_key_files: "{{ local_etc_bind_find_result.files | map(attribute='path') | list }}"
+#  when:
+#    - not ansible_renew_all
+#    - local_etc_bind.stat.exists
+#
+#- name: Generate the list of "*.key" and "*.private" files in "/etc/bind"
+#  set_fact:
+#    remote_tsig_key_files: "{{ remote_etc_bind_find_result.files | map(attribute='path') | list }}"
+#
+#- name: Decide wether all TSIG files should be deleted or not
+#  set_fact:
+#    ansible_renew_all: True
+#  when:
+#    - ansible_renew_all or
+#      (local_tsig_key_files is defined) and (local_tsig_key_files | length != 2) or
+#      (remote_tsig_key_files is defined) and (remote_tsig_key_files | length != 2)
+#
+## localhost
+#- name: Delete all files in "{{ minidc_working_directory }}/{{ inventory_hostname }}/etc/bind"
+#  local_action:
+#    module: file
+#    state: "{{ item }}"
+#    path: "{{ minidc_working_directory }}/{{ inventory_hostname }}/etc/bind"
+#    owner: root
+#    group: root
+#    mode: 0755
+#  with_items:
+#    - absent
+#    - directory
+#  when:
+#    - ansible_renew_all
+#  register: local_etc_bind_delete_task
+#
+#- name: Delete "*.key" and "*.private" files in "/etc/bind"
+#  file:
+#    state: absent
+#    path: "{{ item }}"
+#  with_items:
+#    - "{{ remote_tsig_key_files }}"
+#  when:
+#    - ansible_renew_all
+#  register: remote_etc_bind_delete_task
+#
+## Generate new TSIG files
+#- name: Generate TSIG key "{{ dns_tsig_key_name }}"
+#  command: dnssec-keygen -a HMAC-SHA512 -b 512 -K /etc/bind -r /dev/urandom -n HOST "{{ dns_tsig_key_name }}"
+#  when:
+#    - ansible_renew_all
+#  register: tsig_key_generate_task
+#
+## Fetch the TSIG files if they are new
+#- name: Fetch the new TSIG key files from "/etc/bind" to "{{ minidc_working_directory }}/{{ inventory_hostname }}/etc/bind"
+#  fetch:
+#    src: "/etc/bind/{{ item }}"
+#    dest: "{{ minidc_working_directory }}"
+#  with_items:
+#    - "{{ tsig_key_generate_task.stdout + '.private' }}"
+#    - "{{ tsig_key_generate_task.stdout + '.key' }}"
+#  when:
+#    - ansible_renew_all
+#
+## Else verify local against remote keys
+#- name: Verify that the TSIG key files in "/etc/bind" are identical to those in "{{ minidc_working_directory }}/{{ inventory_hostname }}/etc/bind"
+#  fetch:
+#    src: "{{ item }}"
+#    dest: "{{ minidc_working_directory }}"
+#  with_items:
+#    - "{{ remote_tsig_key_files }}"
+#  when:
+#    - remote_tsig_key_files is defined
+#    - not ansible_renew_all
+#
+## localhost
+#- name: Read ".key" file if it was renewed
+#  local_action:
+#    module: slurp
+#    path: "{{ minidc_working_directory }}/{{ inventory_hostname }}/etc/bind/{{ tsig_key_generate_task.stdout }}.key"
+#  when:
+#    - ansible_renew_all
+#  register: local_tsig_key_private_file_changed
+#
+#- name: Read ".key" file if it was left unchanged
+#  local_action:
+#    module: slurp
+#    path: "{{ minidc_working_directory }}/{{ inventory_hostname }}{{ item }}"
+#  with_items:
+#    - "{{ remote_tsig_key_files | select('match', '^.*key$') | list }}"
+#  when:
+#    - not ansible_renew_all
+#  register: local_tsig_key_private_file_unchanged
+#
+#- name: Extract key name and secret from ".key" file if it was left unchanged
+#  set_fact:
+#    dns_tsig_key_secret: "{{ item.content | b64decode | regex_replace('^.* IN KEY [0-9]{3} [0-9] [0-9]{3} (.*) (.*)\n$', '\\1\\2') }}"
+#    dns_tsig_key_name: "{{ item.content | b64decode | regex_replace('^(.*)\\. IN KEY.*\n$', '\\1') }}"
+#  with_items:
+#    - "{{ local_tsig_key_private_file_unchanged.results }}"
+#  when:
+#    - not ansible_renew_all
+#
+#- name: Extract key name and secret from ".key" file when it was renewed
+#  set_fact:
+#    dns_tsig_key_secret: "{{ item.content | b64decode | regex_replace('^.* IN KEY [0-9]{3} [0-9] [0-9]{3} (.*) (.*)\n$', '\\1\\2') }}"
+#    dns_tsig_key_name: "{{ item.content | b64decode | regex_replace('^(.*)\\. IN KEY.*\n$', '\\1') }}"
+#  with_items:
+#    - "{{ local_tsig_key_private_file_changed }}"
+#  when:
+#    - ansible_renew_all
+#
+## need dns_tsig_key_name, dns_tsig_key_algorithm and dns_tsig_key_secret
+#- name: Convert TSIG key for being readable by bind and push it into "/etc/bind/named.conf.tsigkeys"
+#  template:
+#    src: "{{ role_path }}/templates/main_named.conf.tsigkeys.j2"
+#    dest: "/etc/bind/named.conf.tsigkeys"
+#    owner: root
+#    group: bind
+#    mode: 0644
+#
+#- name: Fetch the converted TSIG key file from "/etc/bind/" to "{{ minidc_working_directory }}/{{ inventory_hostname }}/etc/bind" on localhost
+#  fetch:
+#    src: "/etc/bind/named.conf.tsigkeys"
+#    dest: "{{ minidc_working_directory }}"
+#
+#- name: Initialize empty dictionaries
+#  set_fact:
+#    dns_master_ptr_zones: []
+#    reversed_forward_dict: {}
+#    reversed_reverse_dict: {}
+#
+##- debug:
+##    var: dns_master_zones
+#
+#- name: Calculate the PTR zones when 1 < network mask < 9 
+#  set_fact:
+#    dns_master_ptr_zones: "{{ dns_master_ptr_zones + [ { 'ptr_zone' : item.subnet | ipaddr('revdns') | regex_replace('^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.', ''), 'ns_url' : item.ns_url, 'ns_contact' : item.ns_contact, 'subnet' : item.subnet } ] }}"
+#  with_items: "{{ dns_master_zones.reverse }}"
+#  when:
+#    - 1 < (item.subnet | ipaddr('prefix')) < 9
+#
+#- name: Calculate the PTR zones when 8 < network mask < 16
+#  set_fact:
+#    dns_master_ptr_zones: "{{ dns_master_ptr_zones + [ { 'ptr_zone' : item.subnet | ipaddr('revdns') | regex_replace('^\\d{1,3}\\.\\d{1,3}\\.', ''), 'ns_url' : item.ns_url, 'ns_contact' : item.ns_contact, 'subnet' : item.subnet } ] }}"
+#  with_items: "{{ dns_master_zones.reverse }}"
+#  when:
+#    - 8 < (item.subnet | ipaddr('prefix')) < 17
+#
+#- name: Calculate the PTR zones when 16 < network mask
+#  set_fact:
+#    dns_master_ptr_zones: "{{ dns_master_ptr_zones + [ { 'ptr_zone' : item.subnet | ipaddr('revdns') | regex_replace('^\\d{1,3}\\.', ''), 'ns_url' : item.ns_url, 'ns_contact' : item.ns_contact, 'subnet' : item.subnet } ] }}"
+#  with_items: "{{ dns_master_zones.reverse }}"
+#  when:
+#    - 16 < (item.subnet | ipaddr('prefix'))
+#
+#- debug:
+#    var: dns_master_ptr_zones
+#
+## need dns_master_zones, dns_master_ptr_zones and dns_tsig_key_name
+#- name: Generate the "/etc/bind/named.conf.local" file
+#  template:
+#    src: "{{ role_path }}/templates/main_named.conf.local.j2"
+#    dest: /etc/bind/named.conf.local
+#    owner: root
+#    group: bind
+#    mode: 0644
+#  register: etc_bind_named_conf_local_task
+#
+## need
+#- name: Generate dynamic forward zone files
+#  template:
+#    src: "{{ role_path }}/templates/main_db_forward.j2"
+#    dest: "/var/lib/bind/db.{{ item.name }}"
+#  with_items: "{{ dns_master_zones.forward }}"
+#  register: dynamic_forward_zones_task
+#  when:
+#    - ansible_renew_all 
+#
+#- name: Generate dynamic reverse zone files
+#  template:
+#    src: "{{ role_path }}/templates/main_db_reverse.j2"
+#    dest: "/var/lib/bind/db.{{ item.ptr_zone | regex_replace('.in-addr.arpa.', '') }}"
+#  with_items: "{{ dns_master_ptr_zones }}"
+#  register: dynamic_reverse_zones_task
+#  when:
+#    - ansible_renew_all 
+#
+#- include_tasks: logrotate.yml
+#
+#- name: Verify bind configuration
+#  command: named-checkconf -z
+#  changed_when: False
+#
+#- name: Reload bind
+#  systemd:
+#    name: bind9
+#    state: reloaded
+#  when:
+#    - ansible_renew_all or
+#      etc_bind_named_conf_options_task.changed or
+#      etc_bind_named_conf_logs_task.changed or
+#      etc_bind_named_conf_local_task.changed or
+#      etc_bind_named_conf_task.changed or
+#      dynamic_forward_zones_task.changed or
+#      dynamic_reverse_zones_task.changed
+#
+#################################################################################
+######################## Get records from DHCP leases ###########################
+#################################################################################
+#
+#- name: Check if the DHCP pairs are online
+#  connection: local
+#  wait_for:
+#    host: "{{ hostvars[item]['ansible_host'] }}"
+#    msg: "FAIL"
+#    connect_timeout: 1
+#    timeout: 2
+#    port: "{{ ansible_port }}"
+#  with_items:
+#    - "{{ dhcp_pairs }}"
+#  register: check_dhcp_pairs
+#  failed_when: False
+#
+##- debug:
+##    var: check_dhcp_pairs
+#
+#- name: Try to read the file "/var/lib/dhcp/dhcpd.leases" from DHCP pairs
+#  slurp:
+#    src: /var/lib/dhcp/dhcpd.leases
+#  with_items:
+#    - "{{ check_dhcp_pairs.results }}"
+#  delegate_to: "{{ item.item }}"
+#  failed_when: False
+#  register: slurp_dhcp_leases_task
+#  when:
+#    - item.msg is not defined
+#    - item.state is defined
+#    - item.state == "started"
+#
+##- debug:
+##    var: slurp_dhcp_leases_task
+#
+#- name: Make a list of DHCP leases
+#  set_fact:
+#    dhcp_leases_basic: "{{ item.content | b64decode | regex_findall('(?s)\\nlease.*?\\n}') | list }}"
+#  with_items:
+#    - "{{ slurp_dhcp_leases_task.results }}"
+#  no_log: true
+#  when:
+#    - item.skipped is not defined
+#    - "(item.msg is not defined) or (item.msg is defined and 'file not found' not in item.msg)"
+#
+#- name: Remove useless data from the list of DHCP leases
+#  vars:
+#    dhcp_leases_precise: []
+#  set_fact:
+#    dhcp_leases_precise: "{{ dhcp_leases_precise + [[item | regex_search('lease .*? {') | regex_replace('lease (.*) {', '\\1'), item | regex_search('ddns-rev-name = \".*?\"') | regex_replace('.*\"(.*)\".*', '\\1'), item | regex_search('ddns-txt = \".*?\"') | regex_replace('.*\"(.*)\".*', '\\1'), item | regex_search('ddns-fwd-name = \".*?\"') | regex_replace('.*\"(.*)\".*', '\\1'), item | regex_search('client-hostname \".*?\"') | regex_replace('.*\"(.*)\".*', '\\1')]] }}"
+#  with_items:
+#    - "{{ dhcp_leases_basic }}"
+#  when:
+#    - dhcp_leases_basic is defined
+#
+#- debug:
+#    var: dhcp_leases_precise
+#
+#- name: Make the lists of A and TXT records in the DHCP leases
+#  vars:
+#    a_records_in_dhcp: []
+#    txt_records_in_dhcp: []
+#  set_fact:
+#    a_records_in_dhcp: "{{ a_records_in_dhcp + [[(item.3 | regex_replace(item.4 + '\\.(.*)\\.', '\\1')), item.4, item.0]] }}"
+#    txt_records_in_dhcp: "{{ txt_records_in_dhcp + [[(item.3 | regex_replace(item.4 + '\\.(.*)\\.', '\\1')), item.4, '\"' + item.2 + '\"' ]] }}"
+#  with_items:
+#    - "{{ dhcp_leases_precise }}"
+#  when:
+#    - dhcp_leases_precise is defined
+#    - item.0 != 'None'
+#    - item.1 != 'None'
+#    - item.2 != 'None'
+#    - item.3 != 'None'
+#    - item.4 != 'None'
+#
+## For each DHCP pair
+#- name: Extract PTR records from DHCP
+#  vars:
+#    ptr_records_in_dhcp: []
+#  include_tasks: extract_ptr_records_from_dhcp_leases_loop1.yml
+#  with_items:
+#    - "{{ dhcp_pairs }}"
+#  loop_control:
+#    loop_var: dhcp_pair
+#
+#- name: Remove duplicate entries from DHCP leases list
+#  set_fact:
+#    ptr_records_in_dhcp: "{{ ptr_records_in_dhcp | unique }}"
+#  when: ptr_records_in_dhcp is defined
+#
+#- debug:
+#    var: a_records_in_dhcp
+#
+#- debug:
+#    var: txt_records_in_dhcp
+#
+#- debug:
+#    var: ptr_records_in_dhcp
+#
+## We now have the following lists :
+## - a_records_in_dhcp
+## - txt_records_in_dhcp
+## - ptr_records_in_dhcp
+#
+#################################################################################
+################################### Dig the DNS #################################
+#################################################################################
+#
+#- name: Dig the forward zones
+#  command: "dig axfr -k {{ remote_tsig_key_files | select('match', '^.*private$') | list | join('') }} {{ item.name }}"
+#  with_items: "{{ dns_master_zones.forward }}"
+#  changed_when: False
+#  register: dig_forward_command
+#
+#- name: Dig the reverse zones
+#  command: "dig axfr -k {{ remote_tsig_key_files | select('match', '^.*private$') | list | join('') }} {{ item.ptr_zone }}"
+#  with_items: "{{ dns_master_ptr_zones }}"
+#  changed_when: False
+#  register: dig_reverse_command
+#
+##- debug:
+##    var: dig_forward_command.results
+#
+##- debug:
+##    var: dig_reverse_command.results
+#
+#################################################################################
+################## Filter and refactor results coming from digs #################
+#################################################################################
+#
+#- name: Filter A and TXT records in the result of the dig of forward zones
+#  no_log: True
+#  vars:
+#    dns_a_records_temp: []
+#    dns_txt_records_temp: []
+#  set_fact:
+#    dns_a_records_temp: "{{ dns_a_records_temp + [ item.stdout_lines | map('regex_search', '.*[ \\t]A[ \\t].*') | select('string') | map('regex_replace', '^(.*)[ \\t][0-9]+[ \\t]IN[ \\t]A[ \\t](.*)$', (item.item.name + ' \\1 \\2')) | list ] | sum(start=[]) }}"
+#    dns_txt_records_temp: "{{ dns_txt_records_temp + [ item.stdout_lines | map('regex_search', '.*[ \\t]TXT[ \\t].*') | select('string') | map('regex_replace', '^(.*)[ \\t][0-9]+[ \\t]IN[ \\t]TXT[ \\t](.*)$', (item.item.name + ' \\1 \\2')) | list ] | sum(start=[]) }}"
+#  with_items:
+#    - "{{ dig_forward_command.results }}"
+#
+#- debug:
+#    var: dns_a_records_temp
+#
+#- debug:
+#    var: dns_txt_records_temp
+#
+#- name: Filter PTR records in the result of the dig of reverse zones
+#  no_log: True
+#  vars:
+#    dns_ptr_records_temp: []
+#  set_fact:
+#    dns_ptr_records_temp: "{{ dns_ptr_records_temp + [ item.stdout_lines | map('regex_search', '.*[ \\t]PTR[ \\t].*') | select('string') | map('regex_replace', '^(.*)[ \\t][0-9]+[ \\t]IN[ \\t]PTR[ \\t](.*)$', item.item.ptr_zone + ' \\1 \\2') | list ] | sum(start=[]) }}"
+#  with_items:
+#    - "{{ dig_reverse_command.results }}"
+#
+#- name: Refactor A records obtained from the dig
+#  vars:
+#    dns_a_records: []
+#    #dns_a_records_to_delete: []
+#  set_fact:
+#    dns_a_records: "{{ dns_a_records + [ (item | regex_replace('^(?P<zone>.*?) (.*?)\\.(?P=zone)\\. (.*?)$', '\\1 \\2 \\3')).split(' ') ] }}"
+#    #dns_a_records_to_delete: "{{ dns_a_records_to_delete + [ (item | regex_replace('^(?P<zone>.*?) (.*?)\\.(?P=zone)\\. (.*?)$', '\\1 \\2 \\3')).split(' ') ] }}"
+#  with_items:
+#    - "{{ dns_a_records_temp }}"
+#
+#- debug:
+#    var: dns_a_records
+#
+#- name: Refactor TXT records obtained from the dig
+#  vars:
+#    dns_txt_records: []
+#    #dns_txt_records_to_delete: []
+#  set_fact:
+#    dns_txt_records: "{{ dns_txt_records + [ (item | regex_replace('^(?P<zone>.*?) (.*?)\\.(?P=zone)\\. (.*?)$', '\\1 \\2 \\3')).split(' ', 2) ] }}"
+#    #dns_txt_records_to_delete: "{{ dns_txt_records_to_delete + [ (item | regex_replace('^(?P<zone>.*?) (.*?)\\.(?P=zone)\\. (.*?)$', '\\1 \\2 \\3')).split(' ', 2) ] }}"
+#  with_items:
+#    - "{{ dns_txt_records_temp }}"
+#
+#- debug:
+#    var: dns_txt_records
+#
+#- name: Refactor PTR records obtained from the dig
+#  vars:
+#    dns_ptr_records: []
+#    dns_ptr_records_to_delete: []
+#  set_fact:
+#    dns_ptr_records: "{{ dns_ptr_records + [ (item | regex_replace('^(?P<zone>.*?) (.*?)\\.(?P=zone)\\. (.*?)$', '\\1 \\2 \\3')).split(' ') ] }}"
+#    dns_ptr_records_to_delete: "{{ dns_ptr_records_to_delete + [ (item | regex_replace('^(?P<zone>.*?) (.*?)\\.(?P=zone)\\. (.*?)$', '\\1 \\2 \\3')).split(' ') ] }}"
+#  with_items:
+#    - "{{ dns_ptr_records_temp }}"
+#
+#- debug:
+#    var: dns_ptr_records
+#
+#################################################################################
+######################### First, we look at the A records #######################
+#################################################################################
+#
+#- name: Read A records from inventory
+#  vars:
+#    inventory_a_records: []
+#  set_fact:
+#    inventory_a_records: "{{ inventory_a_records + [[ item.0.name, item.1.0, item.1.1 ]] }}"
+#  with_subelements:
+#    - "{{ dns_master_zones.forward }}"
+#    - "a_records"
+#
+#- name: Read NS records from inventory
+#  set_fact:
+#    inventory_a_records: "{{ inventory_a_records + [[item.name, item.ns_a_record | regex_replace('^(.*)\\.' + item.name + '$', '\\1'), item.ns_ip]] }}"
+#  with_items:
+#    - "{{ dns_master_zones.forward }}" 
+#
+##- debug:
+##    var: inventory_a_records
+#
+##- debug:
+##    var: delete_list_forward_zones
+#
+#- name: Build A records list to insert into the DNS
+#  set_fact:
+#    dns_a_records_to_add: "{{ inventory_a_records | union(a_records_in_dhcp|default([])) | difference(dns_a_records|default([])) }}"
+#
+#- name: Build A records list to delete from the DNS
+#  set_fact:
+#    dns_a_records_to_delete: "{{ dns_a_records | difference(inventory_a_records|default([])) | difference(a_records_in_dhcp|default([])) }}"
+#
+#- debug:
+#    var: dns_a_records_to_add
+#
+#- debug:
+#    var: dns_a_records_to_delete
+#
+#- name: Delete obsolote A records in forward zones
+#  nsupdate:
+#    key_name: "{{ dns_tsig_key_name }}"
+#    key_secret: "{{ dns_tsig_key_secret }}"
+#    key_algorithm: "{{ dns_tsig_key_algorithm | lower }}"
+#    server: "{{ ansible_host }}"
+#    zone: "{{ item.0 }}"
+#    record: "{{ item.1 }}"
+#    value: "{{ item.2 }}"
+#    state: "absent"
+#  with_items:
+#    - "{{ dns_a_records_to_delete }}"
+#  when:
+#    - dns_a_records_to_delete is defined
+#
+#- name: Fill the forward zones with A records
+#  nsupdate:
+#    key_name: "{{ dns_tsig_key_name }}"
+#    key_secret: "{{ dns_tsig_key_secret }}"
+#    key_algorithm: "{{ dns_tsig_key_algorithm | lower }}"
+#    server: "{{ ansible_host }}"
+#    zone: "{{ item.0 }}"
+#    record: "{{ item.1 }}"
+#    value: "{{ item.2 }}"
+#    state: "present"
+#    ttl: 86400
+#  with_items:
+#    - "{{ dns_a_records_to_add }}"
+#  when:
+#    - dns_a_records_to_add is defined
+#
+#################################################################################
+######################## Next, we look at the TXT records #######################
+#################################################################################
+#
+#- name: Read TXT records from inventory
+#  vars:
+#    inventory_txt_records: []
+#  set_fact:
+#    inventory_txt_records: "{{ inventory_txt_records + [[ item.0.name, item.1.0, item.1.1 ]] }}"
+#  with_subelements:
+#    - "{{ dns_master_zones.forward }}"
+#    - "txt_records"
+#
+#- debug:
+#    var: inventory_txt_records
+#
+## TXT records to add :
+## Records in the inventory + records in the DHCP - records in the DNS
+#- name: Build TXT records list to insert into the DNS
+#  set_fact:
+#    dns_txt_records_to_add: "{{ inventory_txt_records | union(txt_records_in_dhcp|default([])) | difference(dns_txt_records|default([])) }}"
+#
+## TXT records to delete :
+## Records in the DNS - records in the inventory - records in the DHCP
+#- name: Build TXT records list to delete from the DNS
+#  set_fact:
+#    dns_txt_records_to_delete: "{{ (dns_txt_records|default([])) | difference(inventory_txt_records|default([])) | difference(txt_records_in_dhcp|default([])) }}"
+#
+#- debug:
+#    var: dns_txt_records_to_add
+#
+#- debug:
+#    var: dns_txt_records_to_delete
+#
+#- name: Delete obsolote TXT records in forward zones
+#  nsupdate:
+#    key_name: "{{ dns_tsig_key_name }}"
+#    key_secret: "{{ dns_tsig_key_secret }}"
+#    key_algorithm: "{{ dns_tsig_key_algorithm | lower }}"
+#    server: "{{ ansible_host }}"
+#    zone: "{{ item.0 }}"
+#    record: "{{ item.1 }}"
+#    value: "{{ item.2 }}"
+#    type: "TXT"
+#    state: "absent"
+#  with_items:
+#    - "{{ dns_txt_records_to_delete }}"
+#  when:
+#    - dns_txt_records_to_delete is defined
+#
+#- name: Fill the forward zones with TXT records
+#  nsupdate:
+#    key_name: "{{ dns_tsig_key_name }}"
+#    key_secret: "{{ dns_tsig_key_secret }}"
+#    key_algorithm: "{{ dns_tsig_key_algorithm | lower }}"
+#    server: "{{ ansible_host }}"
+#    zone: "{{ item.0 }}"
+#    record: "{{ item.1 }}"
+#    value: "{{ item.2 }}"
+#    state: "present"
+#    type: "TXT"
+#    ttl: 86400
+#  with_items:
+#    - "{{ dns_txt_records_to_add }}"
+#  when:
+#    - dns_txt_records_to_add is defined
+#
+#################################################################################
+######################## Next, we look at the PTR records #######################
+#################################################################################
+#
+#- name: Read PTR records from inventory
+#  vars:
+#    inventory_ptr_records: []
+#  set_fact:
+#    inventory_ptr_records: "{{ inventory_ptr_records + [[ (dns_master_ptr_zones | selectattr('subnet', 'equalto', item.0.subnet) | map(attribute='ptr_zone') | list | join('')), item.1.1 | ipaddr('revdns'), item.1.0 + '.' ]] }}"
+#  with_subelements:
+#    - "{{ dns_master_zones.reverse }}"
+#    - "ptr_records"
+#
+#- name: Build PTR records to add in the DNS ":" remove records already present in the DNS
+#  set_fact:
+#    dns_ptr_records_to_add: "{{ inventory_ptr_records | union(ptr_records_in_dhcp|default([])) | difference(dns_ptr_records|default([])) }}"
+#  when:
+#    - dns_ptr_records is defined
+#
+#- debug:
+#    var: inventory_ptr_records
+#
+#- debug:
+#    var: ptr_records_in_dhcp
+#
+#- name: Build PTR records list to delete from the DNS
+#  set_fact:
+#    dns_ptr_records_to_delete: "{{ dns_ptr_records_to_delete | difference(inventory_ptr_records|default([])) | difference(ptr_records_in_dhcp|default([])) }}"
+#  when:
+#    - dns_ptr_records_to_delete is defined
+#
+#- debug:
+#    var: dns_ptr_records_to_delete
+#
+#- name: Delete obsolote PTR records in reverse zones
+#  nsupdate:
+#    key_name: "{{ dns_tsig_key_name }}"
+#    key_secret: "{{ dns_tsig_key_secret }}"
+#    key_algorithm: "{{ dns_tsig_key_algorithm | lower }}"
+#    server: "{{ ansible_host }}"
+#    zone: "{{ item.0 }}"
+#    record: "{{ item.1 }}"
+#    value: "{{ item.2 }}"
+#    state: "absent"
+#    type: "PTR"
+#  with_items:
+#    - "{{ dns_ptr_records_to_delete }}"
+#  when:
+#    - dns_ptr_records_to_delete is defined
+#
+#- name: Fill the reverse zones with PTR records
+#  nsupdate:
+#    key_name: "{{ dns_tsig_key_name }}"
+#    key_secret: "{{ dns_tsig_key_secret }}"
+#    key_algorithm: "{{ dns_tsig_key_algorithm | lower }}"
+#    server: "{{ ansible_host }}"
+#    zone: "{{ item.0 }}"
+#    record: "{{ item.1 }}"
+#    value: "{{ item.2 }}"
+#    type: "PTR"
+#    ttl: 86400
+#  with_items:
+#    - "{{ dns_ptr_records_to_add }}"
+#  when:
+#    - dns_ptr_records is defined

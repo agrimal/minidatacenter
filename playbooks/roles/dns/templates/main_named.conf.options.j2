@@ -129,4 +129,7 @@ options {
     # purged from the cache only when their TTLs expire. This statement may be
     # used in view or a global options clause.
     max-cache-size 50m;
+
+    # check-names ( master | slave | response ) ( fail | warn | ignore );
+    check-names master ignore;
 };
