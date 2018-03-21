@@ -93,7 +93,7 @@ all:
                 dns_tsig_key_algorithm: 'HMAC-SHA512'
             hosts:
 
-                ubuca03:
+                ubuca01:
                     network:
                         ethernets:
                             ethint:
@@ -126,7 +126,7 @@ all:
                         - 'client02'
                         - 'client03'
 
-                ubudns03:
+                ubudns01:
                     network:
                         ethernets:
                             ethint:
@@ -151,11 +151,13 @@ all:
                           ns_ip: '192.168.1.201'
                           ns_contact: 'admin'
                           a_records:
-                          - ['ubudns03',  '192.168.1.201']
-                          - ['ubudhcp03', '192.168.1.202']
-                          - ['ubuca03',   '192.168.1.203']
+                          - ['ubudns01'  , '192.168.1.201']
+                          - ['ubudhcp01' , '192.168.1.202']
+                          - ['ubuca01'   , '192.168.1.203']
+                          - ['uburvprx01', '192.168.1.204']
+                          - ['ubuvpn01'  , '192.168.1.205']
                           txt_records:
-                          - ['ubudns03',  '"Test TXT record"']
+                          - ['ubudns01',  '"Test TXT record"']
                         - name: 'tech-tips.home'
                           ns_a_record: 'dns.tech-tips.home'
                           ns_ip: '192.168.1.201'
@@ -167,33 +169,47 @@ all:
                           ns_ip: '10.10.0.201'
                           ns_contact: 'admin'
                           a_records:
-                          - ['ubudns03',  '10.10.0.201']
-                          - ['ubudhcp03', '10.10.0.202']
-                          - ['ubuca03',   '10.10.0.203']
+                          - ['ubudns01'  , '10.10.0.201']
+                          - ['ubudhcp01' , '10.10.0.202']
+                          - ['ubuca01'   , '10.10.0.203']
+                          - ['uburvprx01', '10.10.0.204']
+                          - ['ubuvpn01'  , '10.10.0.205']
+                          txt_records: []
+                        - name: 'grimal-fr.com'
+                          ns_a_record: 'dns.grimal-fr.com'
+                          ns_ip: '10.10.0.201'
+                          ns_contact: 'admin'
+                          a_records:
+                            - ['cloud'  , '192.168.1.108']
+                            - ['webmail'  , '192.168.1.108']
                           txt_records: []
                         reverse:
                         - subnet: '192.168.1.0/24'
                           ns_url: 'dns.tech-tips.fr'
                           ns_contact: 'admin'
                           ptr_records:
-                          - ['ubudns03.tech-tips.fr',  '192.168.1.201']
-                          - ['ubudhcp03.tech-tips.fr', '192.168.1.202']
-                          - ['ubuca03.tech-tips.fr',   '192.168.1.203']
+                          - ['ubudns01.tech-tips.fr'  , '192.168.1.201']
+                          - ['ubudhcp01.tech-tips.fr' , '192.168.1.202']
+                          - ['ubuca01.tech-tips.fr'   , '192.168.1.203']
+                          - ['uburvprx01.tech-tips.fr', '192.168.1.204']
+                          - ['ubuvpn01.tech-tips.fr'  , '192.168.1.205']
                         - subnet: '10.10.0.0/16'
                           ns_url: 'dns.tech-tips.private'
                           ns_contact: 'admin'
                           ptr_records:
-                          - ['ubudns03.tech-tips.private',  '10.10.0.201']
-                          - ['ubudhcp03.tech-tips.private', '10.10.0.202']
-                          - ['ubuca03.tech-tips.private',   '10.10.0.203']
+                          - ['ubudns01.tech-tips.private'  , '10.10.0.201']
+                          - ['ubudhcp01.tech-tips.private' , '10.10.0.202']
+                          - ['ubuca01.tech-tips.private'   , '10.10.0.203']
+                          - ['uburvprx01.tech-tips.private', '10.10.0.204']
+                          - ['ubuvpn01.tech-tips.private'  , '10.10.0.205']
                     dns_clients:
                     - { 'Clients' : '192.168.1.0/24' }
                     dns_admins:
                     - { 'DHCP container' : '10.10.0.202/32' }
                     dhcp_pairs:
-                    - 'ubudhcp03'
+                    - 'ubudhcp01'
 
-                ubudhcp03:
+                ubudhcp01:
                     network:
                         ethernets:
                             ethint:
@@ -211,7 +227,7 @@ all:
                     dhcp_default_lease_time: '14400'
                     dhcp_max_lease_time: '86400'
                     dns_pairs_config:
-                    - server: 'ubudns03'
+                    - server: 'ubudns01'
                       dhcp_forward_zones:
                       - name: 'tech-tips.home'
                         dns_ip: '10.10.0.201'
@@ -231,7 +247,8 @@ all:
                         dns_servers: ['192.168.2.201','192.168.2.1']
                         ddns_domain: 'tech-tips.perso'
                         ddns_reverse: True
-                uburvprx03:
+
+                uburvprx01:
                     network:
                         ethernets:
                             ethint:
@@ -252,7 +269,8 @@ all:
                     sslh_ssl_redirect_port: 4443
                     vpn_listen_ip: '10.10.0.205'
                     vpn_listen_port: 443
-                ubuvpn03:
+
+                ubuvpn01:
                     network:
                         ethernets:
                             ethint:
@@ -270,7 +288,8 @@ all:
                     vpn_listen_port: 443
                     vpn_protocol: 'tcp'
                     vpn_device: 'tun'
-                    ca_server: 'ubuca03'
+                    ca_server: 'ubuca01'
                     vpn_server_url: 'vpn.tech-tips.fr'
                     vpn_subnet: '10.8.0.0/24'
                     vpn_push_dns: ['192.168.1.201', '192.168.1.1']
+                    vpn_interface_to_internet: 'ethext'

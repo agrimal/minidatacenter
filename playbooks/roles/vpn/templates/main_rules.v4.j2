@@ -1,14 +1,9 @@
-*mangle
+*nat
 :PREROUTING ACCEPT [0:0]
 :INPUT ACCEPT [0:0]
-:FORWARD ACCEPT [0:0]
 :OUTPUT ACCEPT [0:0]
 :POSTROUTING ACCEPT [0:0]
-:SSLH - [0:0]
--A OUTPUT -o {{ sslh_listen_interface }} -p tcp -m tcp --sport {{ sslh_openvpn_redirect_port }} -j SSLH
--A OUTPUT -o {{ sslh_listen_interface }} -p tcp -m tcp --sport {{ sslh_ssl_redirect_port }} -j SSLH
--A SSLH -j MARK --set-xmark 0x1/0xffffffff
--A SSLH -j ACCEPT
+-A POSTROUTING -s {{ vpn_subnet }} -o {{ vpn_interface_to_internet }} -j MASQUERADE
 COMMIT
 
 *filter

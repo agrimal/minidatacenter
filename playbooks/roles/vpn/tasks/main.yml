@@ -17,6 +17,17 @@
     mode: 0644
   register: modify_etc_openvpn_server_conf_task
 
+- name: Generate 'client.conf' for each client in "{{ minidc_working_directory }}/{{ ca_server }}{{ hostvars[ca_server]['ca_easy_rsa_install_dir'] }}/keys"
+  local_action:
+    module: template
+    src: "{{ role_path }}/templates/main_client.conf.j2"
+    dest: "{{ minidc_working_directory }}/{{ ca_server }}{{ hostvars[ca_server]['ca_easy_rsa_install_dir'] }}/keys/{{ item }}.ovpn"
+    owner: root
+    group: root
+    mode: 0644
+  with_items:
+    - "{{ hostvars[ca_server]['ca_certificates']['clients'] }}"
+
 - name: Copy server certificates and keys
   copy:
     src: "{{ minidc_working_directory }}/{{ ca_server }}/{{ hostvars[ca_server]['ca_easy_rsa_install_dir'] }}/keys/{{ item.0 }}"
@@ -38,6 +49,8 @@
     owner: root
     group: root
     mode: 0644
+# After this, need to :
+# - enable and daemon-reload the promiscuous service
 
 - name: Copy "/etc/rsyslog.d/01-openvpn.conf"
   copy:
@@ -78,37 +91,29 @@
     enabled: yes
     daemon_reload: yes
 
-#- name: Restart sslh_ip_params service
-#  systemd:
-#    name: sslh_ip_params
-#    state: restarted
-#    daemon_reload: yes
-#  when:
-#    - create_unit_file_for_sslh_ip_params_service_task.changed
-#
-#- name: Be sure sslh and sslh_ip_params services are started and enabled
-#  systemd:
-#    name: "{{ item }}"
-#    state: started
-#    enabled: yes
-#  with_items:
-#    - sslh
-#    - sslh_ip_params
-#
-#- name: Generate "/etc/iptables/rules.v4"
-#  template:
-#    src: "{{ role_path }}/templates/main_rules.v4.j2"
-#    dest: /etc/iptables/rules.v4
-#    owner: root
-#    group: root
-#    mode: 0644
-#  register: modify_etc_iptables_rules_v4_task
-#
-#- name: Apply iptables rules
-#  command: iptables-restore /etc/iptables/rules.v4
-#  when:
-#    - modify_etc_iptables_rules_v4_task.changed
-#
+- name: Allow kernel to forward incoming IPv4 traffic
+  sysctl:
+    sysctl_file: /etc/sysctl.d/99-sysctl.conf
+    name: 'net.ipv4.ip_forward'
+    value: 1
+    sysctl_set: yes
+    state: present
+    reload: yes
+
+- name: Generate "/etc/iptables/rules.v4"
+  template:
+    src: "{{ role_path }}/templates/main_rules.v4.j2"
+    dest: /etc/iptables/rules.v4
+    owner: root
+    group: root
+    mode: 0644
+  register: modify_etc_iptables_rules_v4_task
+
+- name: Apply iptables rules
+  command: iptables-restore /etc/iptables/rules.v4
+  when:
+    - modify_etc_iptables_rules_v4_task.changed
+
 #- name: Generate "/etc/nginx/nginx.conf"
 #  template:
 #    src: "{{ role_path }}/templates/main_nginx.conf.j2"

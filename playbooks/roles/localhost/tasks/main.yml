@@ -40,6 +40,7 @@
     - time
     - traceroute
     - vim
+    - tree
 
 - name: Verify all packages are up-to-date
   apt:
@@ -192,21 +193,3 @@
 - name: Configure TimeZone
   timezone:
     name: "{{ local_timezone }}"
-
-- name: Create and start the containers
-  lxd_container:
-    name: "{{ item }}"
-    architecture: x86_64
-    ephemeral: 'false'
-    state: started
-    source:
-        type: "{{ hostvars[item]['source_type'] }}"
-        mode: "{{ hostvars[item]['source_mode'] }}"
-        server: "{{ hostvars[item]['source_server'] }}"
-        protocol: "{{ hostvars[item]['source_protocol'] }}"
-        alias: "{{ hostvars[item]['source_alias'] }}"
-    profiles: "{{ hostvars[item]['lxd_profiles'] }}"
-    wait_for_ipv4_addresses: false
-    timeout: 30
-    config: "{{ hostvars[item]['lxd_config'] }}"
-  with_items: "{{ groups.containers }}"

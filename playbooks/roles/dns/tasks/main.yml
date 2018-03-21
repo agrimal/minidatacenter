@@ -155,6 +155,22 @@
     - ansible_renew_all
   register: tsig_key_generate_task
 
+- name: Find "*.key" and "*.private" files in "/etc/bind"
+  find:
+    path: /etc/bind
+    use_regex: yes
+    patterns: '^K.*\.(key|private)$'
+    recurse: no
+  register: remote_etc_bind_find_result
+  when:
+    - ansible_renew_all
+
+- name: Generate the list of "*.key" and "*.private" files in "/etc/bind"
+  set_fact:
+    remote_tsig_key_files: "{{ remote_etc_bind_find_result.files | map(attribute='path') | list }}"
+  when:
+    - ansible_renew_all
+
 # Fetch the TSIG files if they are new
 - name: Fetch the new TSIG key files from "/etc/bind" to "{{ minidc_working_directory }}/{{ inventory_hostname }}/etc/bind"
   fetch:
@@ -271,7 +287,6 @@
     mode: 0644
   register: etc_bind_named_conf_local_task
 
-# need
 - name: Generate dynamic forward zone files
   template:
     src: "{{ role_path }}/templates/main_db_forward.j2"
@@ -397,6 +412,8 @@
 
 - name: Remove duplicate entries from DHCP leases list
   set_fact:
+    a_records_in_dhcp: "{{ a_records_in_dhcp | unique }}"
+    txt_records_in_dhcp: "{{ txt_records_in_dhcp | unique }}"
     ptr_records_in_dhcp: "{{ ptr_records_in_dhcp | unique }}"
   when: ptr_records_in_dhcp is defined
 
@@ -432,7 +449,7 @@
 
 #- debug:
 #    var: dig_forward_command.results
-
+#
 #- debug:
 #    var: dig_reverse_command.results
 

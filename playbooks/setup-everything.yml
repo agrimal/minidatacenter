@@ -14,7 +14,8 @@
 # limitations under the License.
 
 - import_playbook: setup-localhost.yml
-- import_playbook: setup-common.yml
+- import_playbook: setup-build_containers.yml
+- import_playbook: setup-containers.yml
 - import_playbook: setup-ca.yml
 - import_playbook: setup-dns.yml
 - import_playbook: setup-dhcp.yml

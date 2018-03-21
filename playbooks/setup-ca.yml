@@ -15,7 +15,7 @@
 - name: Install Certificate Authority server
   vars:
     ansible_connection: ssh
-  hosts: ubuca03
+  hosts: ubuca01
   remote_user: root
   roles:
     - ca

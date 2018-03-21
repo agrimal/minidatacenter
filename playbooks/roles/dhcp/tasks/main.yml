@@ -26,6 +26,7 @@
     dest: "/etc/dhcp/tsig_key_{{ item.server }}"
   with_items:
     - "{{ dns_pairs_config }}"
+  register: copy_tsig_keys_task
 
 - name: Generate the "/etc/dhcp/dhcpd.conf" file
   template:
@@ -43,7 +44,8 @@
     enabled: yes
   when:
     - etc_default_isc_dhcp_server_task.changed or
-      etc_dhcp_dhcpd_conf_task.changed
+      etc_dhcp_dhcpd_conf_task.changed or
+      copy_tsig_keys_task.changed
 
 - import_tasks: rsyslog.yml
 

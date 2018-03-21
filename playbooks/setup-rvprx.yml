@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 - name: Install Reverse Proxy servers
-  hosts: uburvprx03
+  hosts: uburvprx01
   remote_user: root
   roles:
     - rvprx
