@@ -121,7 +121,10 @@ all:
                         servers:
                         - 'vpn.tech-tips.fr'
                         - 'ldap.tech-tips.home'
-
+                        clients:
+                        - 'pc_fixe_alcasar'
+                        - 'pc_portable_dell_xps'
+                        - 'smartphone_lg_g6'
                 ubudns01:
                     network:
                         ethernets:
@@ -242,12 +245,6 @@ all:
                         dns_servers: ['192.168.1.201','192.168.1.1']
                         ddns_domain: 'tech-tips.home'
                         ddns_reverse: True
-                      - network: '192.168.2.0/24'
-                        range: '192.168.2.215 192.168.2.240'
-                        gateway: '192.168.2.1'
-                        dns_servers: ['192.168.2.201','192.168.2.1']
-                        ddns_domain: 'tech-tips.perso'
-                        ddns_reverse: True
 
                 uburvprx01:
                     network:
@@ -294,3 +291,18 @@ all:
                     vpn_subnet: '10.8.0.0/24'
                     vpn_push_dns: ['192.168.1.201', '192.168.1.1']
                     vpn_interface_to_internet: 'ethext'
+                ubutest01:
+                    network:                                                     
+                        ethernets:                                               
+                            ethint:                                              
+                                addresses: ['10.10.0.210/24']                    
+                            ethext:                                              
+                                addresses: ['192.168.1.210/24']                  
+                                gateway4: '192.168.1.1'                          
+                                routes:                                          
+                                - to: '0.0.0.0/0'                                
+                                  via: '192.168.1.1'                             
+                                nameservers:                                     
+                                    addresses: ['192.168.1.201', '192.168.1.1']
+                    ansible_host: '10.10.0.210'
+                    source_alias: 'ubuntu/artful/amd64'
