@@ -121,10 +121,6 @@ all:
                         servers:
                         - 'vpn.tech-tips.fr'
                         - 'ldap.tech-tips.home'
-                        clients:
-                        - 'client01'
-                        - 'client02'
-                        - 'client03'
 
                 ubudns01:
                     network:
@@ -158,12 +154,15 @@ all:
                           - ['ubuvpn01'  , '192.168.1.205']
                           txt_records:
                           - ['ubudns01',  '"Test TXT record"']
+                          cname_records:
+                          - ['vpn',  'uburvprx01']
                         - name: 'tech-tips.home'
                           ns_a_record: 'dns.tech-tips.home'
                           ns_ip: '192.168.1.201'
                           ns_contact: 'admin'
                           a_records: []
                           txt_records: []
+                          cname_records: []
                         - name: 'tech-tips.private'
                           ns_a_record: 'dns.tech-tips.private'
                           ns_ip: '10.10.0.201'
@@ -175,6 +174,7 @@ all:
                           - ['uburvprx01', '10.10.0.204']
                           - ['ubuvpn01'  , '10.10.0.205']
                           txt_records: []
+                          cname_records: []
                         - name: 'grimal-fr.com'
                           ns_a_record: 'dns.grimal-fr.com'
                           ns_ip: '10.10.0.201'
@@ -183,6 +183,7 @@ all:
                             - ['cloud'  , '192.168.1.108']
                             - ['webmail'  , '192.168.1.108']
                           txt_records: []
+                          cname_records: []
                         reverse:
                         - subnet: '192.168.1.0/24'
                           ns_url: 'dns.tech-tips.fr'

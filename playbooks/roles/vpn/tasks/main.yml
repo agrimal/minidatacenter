@@ -8,6 +8,23 @@
     - iptables-persistent
   register: apt_install_task
 
+- name: Check if there is a CRL file in "{{ minidc_working_directory }}/{{ ca_server }}{{ hostvars[ca_server]['ca_easy_rsa_install_dir'] }}/keys"
+  local_action:
+    module: stat
+    path: "{{ minidc_working_directory }}/{{ ca_server }}{{ hostvars[ca_server]['ca_easy_rsa_install_dir'] }}/keys/crl.pem"
+  register: stat_crl_pem_task
+
+- name: Copy the CRL file
+  copy:
+    src: "{{ minidc_working_directory }}/{{ ca_server }}/{{ hostvars[ca_server]['ca_easy_rsa_install_dir'] }}/keys/crl.pem"
+    dest: /etc/openvpn/crl.pem
+    owner: root
+    group: root
+    mode: 0644
+  when:
+    - stat_crl_pem_task.stat.exists is defined
+    - stat_crl_pem_task.stat.exists
+
 - name: Generate "/etc/openvpn/server.conf"
   template:
     src: "{{ role_path }}/templates/main_server.conf.j2"

@@ -111,12 +111,22 @@
     mode: 0644
   register: modify_etc_nginx_conf_task
 
+- name: Copy Virtual Host "http_to_https_redirect"
+  copy:
+    src: "{{ role_path }}/files/main_vhost_http_to_https_redirect"
+    dest: /etc/nginx/sites-available/http_to_https_redirect
+    owner: root
+    group: root
+    mode: 0644
+  register: copy_vhost_http_to_https_redirect_task
+
 - name: Restart nginx service
   systemd:
     name: nginx
     state: restarted
   when:
-    - modify_etc_nginx_conf_task.changed
+    - modify_etc_nginx_conf_task.changed or
+      copy_vhost_http_to_https_redirect_task.changed
 
 #- name: Verify that the "/var/log/bind" directory exists
 #  file:

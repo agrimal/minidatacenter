@@ -312,3 +312,10 @@ mute 4
 # Notify the client that when the server restarts so it
 # can automatically reconnect.
 ;explicit-exit-notify 1
+
+# Certificates Revocation List
+{% if stat_crl_pem_task.stat.exists is defined and stat_crl_pem_task.stat.exists %}
+crl-verify crl.pem
+{% else %}
+;crl-verify crl.pem
+{% endif %}

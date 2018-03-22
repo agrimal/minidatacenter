@@ -9,7 +9,7 @@
     - python3-dnsq
     - python3-pip
 
-- name: Verify that the "/var/log/bind" directory exists
+- name: Be sure the "/var/log/bind" directory exists
   file:
     path: /var/log/bind
     state: directory
@@ -17,13 +17,13 @@
     owner: bind
     group: bind
 
-- name: Disable and stop the systemd-resolved service
+- name: Be sure the systemd-resolved service is stopped and disabled
   systemd:
     name: systemd-resolved
     state: stopped
     enabled: no
 
-- name: Modify "/etc/resolv.conf"
+- name: Generate "/etc/resolv.conf"
   template:
     src: "{{ role_path }}/templates/main_resolv.conf.j2"
     dest: /etc/resolv.conf
@@ -31,7 +31,7 @@
     group: root
     mode: 0644
 
-- name: Verify that the "/etc/bind" directory exists
+- name: Be sure the "/etc/bind" directory exists
   file:
     path: /etc/bind
     state: directory
@@ -39,7 +39,7 @@
     owner: bind
     group: root
 
-- name: Modify "/etc/default/bind9" to listen to IPv4 only and work this 2 threads
+- name: Modify "/etc/default/bind9" to listen to IPv4 only and work whith 2 threads
   lineinfile:
     path: /etc/default/bind9
     regexp: '^OPTIONS="'
@@ -47,7 +47,7 @@
   register: etc_default_bind9_task
 
 # need dns_clients, dns_admins
-- name: Generate the "/etc/bind/named.conf.options" file
+- name: Generate "/etc/bind/named.conf.options"
   template:
     src: "{{ role_path }}/templates/main_named.conf.options.j2"
     dest: /etc/bind/named.conf.options
@@ -56,7 +56,7 @@
     mode: 0644
   register: etc_bind_named_conf_options_task
 
-- name: Copy the "/etc/bind/named.conf.logs" file
+- name: Copy "/etc/bind/named.conf.logs"
   copy:
     src: "{{ role_path }}/files/main_named.conf.logs"
     dest: /etc/bind/named.conf.logs
@@ -65,7 +65,7 @@
     mode: 0644
   register: etc_bind_named_conf_logs_task
 
-- name: Copy the "/etc/bind/named.conf" file
+- name: Copy "/etc/bind/named.conf"
   copy:
     src: "{{ role_path }}/files/main_named.conf"
     dest: "/etc/bind/named.conf"
@@ -74,14 +74,18 @@
     mode: 0644
   register: etc_bind_named_conf_task
 
-# localhost
+- include_tasks: logrotate.yml
+
+################################################################################
+######################### Work with the TSIG keys ##############################
+################################################################################
+
 - name: Check if "{{ minidc_working_directory }}/{{ inventory_hostname }}/etc/bind" exists on localhost
   local_action:
     module: stat
     path: "{{ minidc_working_directory }}/{{ inventory_hostname }}/etc/bind"
   register: local_etc_bind
 
-# localhost
 - name: Find "*.key" and "*.private" files in "{{ minidc_working_directory }}/{{ inventory_hostname }}/etc/bind" on localhost
   local_action:
     module: find
@@ -102,7 +106,6 @@
     recurse: no
   register: remote_etc_bind_find_result
 
-# localhost
 - name: Generate the list of "*.key" and "*.private" files in "{{ minidc_working_directory }}/{{ inventory_hostname }}/etc/bind" on localhost
   set_fact:
     local_tsig_key_files: "{{ local_etc_bind_find_result.files | map(attribute='path') | list }}"
@@ -122,8 +125,7 @@
       (local_tsig_key_files is defined) and (local_tsig_key_files | length != 2) or
       (remote_tsig_key_files is defined) and (remote_tsig_key_files | length != 2)
 
-# localhost
-- name: Delete all files in "{{ minidc_working_directory }}/{{ inventory_hostname }}/etc/bind"
+- name: Delete all files in "{{ minidc_working_directory }}/{{ inventory_hostname }}/etc/bind" on localhost
   local_action:
     module: file
     state: "{{ item }}"
@@ -193,8 +195,7 @@
     - remote_tsig_key_files is defined
     - not ansible_renew_all
 
-# localhost
-- name: Read ".key" file if it was renewed
+- name: Read ".key" file on localhost if it was renewed
   local_action:
     module: slurp
     path: "{{ minidc_working_directory }}/{{ inventory_hostname }}/etc/bind/{{ tsig_key_generate_task.stdout }}.key"
@@ -202,7 +203,7 @@
     - ansible_renew_all
   register: local_tsig_key_private_file_changed
 
-- name: Read ".key" file if it was left unchanged
+- name: Read ".key" file on localhost if it was left unchanged
   local_action:
     module: slurp
     path: "{{ minidc_working_directory }}/{{ inventory_hostname }}{{ item }}"
@@ -244,14 +245,13 @@
     src: "/etc/bind/named.conf.tsigkeys"
     dest: "{{ minidc_working_directory }}"
 
-- name: Initialize empty dictionaries
+################################################################################
+######################### Calculate the PTR zones ##############################
+################################################################################
+
+- name: Initialize empty list for PTR zones
   set_fact:
     dns_master_ptr_zones: []
-    reversed_forward_dict: {}
-    reversed_reverse_dict: {}
-
-#- debug:
-#    var: dns_master_zones
 
 - name: Calculate the PTR zones when 1 < network mask < 9 
   set_fact:
@@ -274,8 +274,11 @@
   when:
     - 16 < (item.subnet | ipaddr('prefix'))
 
-- debug:
-    var: dns_master_ptr_zones
+- debug: var=dns_master_ptr_zones
+
+################################################################################
+################# Modify config. and dynamic zones files #######################
+################################################################################
 
 # need dns_master_zones, dns_master_ptr_zones and dns_tsig_key_name
 - name: Generate the "/etc/bind/named.conf.local" file
@@ -304,8 +307,6 @@
   register: dynamic_reverse_zones_task
   when:
     - ansible_renew_all 
-
-- include_tasks: logrotate.yml
 
 - name: Verify bind configuration
   command: named-checkconf -z
@@ -341,8 +342,7 @@
   register: check_dhcp_pairs
   failed_when: False
 
-#- debug:
-#    var: check_dhcp_pairs
+#- debug: var=check_dhcp_pairs
 
 - name: Try to read the file "/var/lib/dhcp/dhcpd.leases" from DHCP pairs
   slurp:
@@ -357,8 +357,7 @@
     - item.state is defined
     - item.state == "started"
 
-#- debug:
-#    var: slurp_dhcp_leases_task
+#- debug: var=slurp_dhcp_leases_task
 
 - name: Make a list of DHCP leases
   set_fact:
@@ -380,8 +379,7 @@
   when:
     - dhcp_leases_basic is defined
 
-- debug:
-    var: dhcp_leases_precise
+- debug: var=dhcp_leases_precise
 
 - name: Make the lists of A and TXT records in the DHCP leases
   vars:
@@ -400,7 +398,6 @@
     - item.3 != 'None'
     - item.4 != 'None'
 
-# For each DHCP pair
 - name: Extract PTR records from DHCP
   vars:
     ptr_records_in_dhcp: []
@@ -417,19 +414,9 @@
     ptr_records_in_dhcp: "{{ ptr_records_in_dhcp | unique }}"
   when: ptr_records_in_dhcp is defined
 
-- debug:
-    var: a_records_in_dhcp
-
-- debug:
-    var: txt_records_in_dhcp
-
-- debug:
-    var: ptr_records_in_dhcp
-
-# We now have the following lists :
-# - a_records_in_dhcp
-# - txt_records_in_dhcp
-# - ptr_records_in_dhcp
+- debug: var=a_records_in_dhcp
+- debug: var=txt_records_in_dhcp
+- debug: var=ptr_records_in_dhcp
 
 ################################################################################
 ################################## Dig the DNS #################################
@@ -447,32 +434,29 @@
   changed_when: False
   register: dig_reverse_command
 
-#- debug:
-#    var: dig_forward_command.results
-#
-#- debug:
-#    var: dig_reverse_command.results
+#- debug: var=dig_forward_command.results
+#- debug: var=dig_reverse_command.results
 
 ################################################################################
 ################# Filter and refactor results coming from digs #################
 ################################################################################
 
-- name: Filter A and TXT records in the result of the dig of forward zones
+- name: Filter A, TXT and CNAME records in the result of the dig of forward zones
   no_log: True
   vars:
     dns_a_records_temp: []
     dns_txt_records_temp: []
+    dns_cname_records_temp: []
   set_fact:
     dns_a_records_temp: "{{ dns_a_records_temp + [ item.stdout_lines | map('regex_search', '.*[ \\t]A[ \\t].*') | select('string') | map('regex_replace', '^(.*)[ \\t][0-9]+[ \\t]IN[ \\t]A[ \\t](.*)$', (item.item.name + ' \\1 \\2')) | list ] | sum(start=[]) }}"
     dns_txt_records_temp: "{{ dns_txt_records_temp + [ item.stdout_lines | map('regex_search', '.*[ \\t]TXT[ \\t].*') | select('string') | map('regex_replace', '^(.*)[ \\t][0-9]+[ \\t]IN[ \\t]TXT[ \\t](.*)$', (item.item.name + ' \\1 \\2')) | list ] | sum(start=[]) }}"
+    dns_cname_records_temp: "{{ dns_cname_records_temp + [ item.stdout_lines | map('regex_search', '.*[ \\t]CNAME[ \\t].*') | select('string') | map('regex_replace', '^(.*)[ \\t][0-9]+[ \\t]IN[ \\t]CNAME[ \\t](.*)$', (item.item.name + ' \\1 \\2')) | list ] | sum(start=[]) }}"
   with_items:
     - "{{ dig_forward_command.results }}"
 
-- debug:
-    var: dns_a_records_temp
-
-- debug:
-    var: dns_txt_records_temp
+- debug: var=dns_a_records_temp
+- debug: var=dns_txt_records_temp
+- debug: var=dns_cname_records_temp
 
 - name: Filter PTR records in the result of the dig of reverse zones
   no_log: True
@@ -486,28 +470,32 @@
 - name: Refactor A records obtained from the dig
   vars:
     dns_a_records: []
-    #dns_a_records_to_delete: []
   set_fact:
     dns_a_records: "{{ dns_a_records + [ (item | regex_replace('^(?P<zone>.*?) (.*?)\\.(?P=zone)\\. (.*?)$', '\\1 \\2 \\3')).split(' ') ] }}"
-    #dns_a_records_to_delete: "{{ dns_a_records_to_delete + [ (item | regex_replace('^(?P<zone>.*?) (.*?)\\.(?P=zone)\\. (.*?)$', '\\1 \\2 \\3')).split(' ') ] }}"
   with_items:
     - "{{ dns_a_records_temp }}"
 
-- debug:
-    var: dns_a_records
+- debug: var=dns_a_records
 
 - name: Refactor TXT records obtained from the dig
   vars:
     dns_txt_records: []
-    #dns_txt_records_to_delete: []
   set_fact:
     dns_txt_records: "{{ dns_txt_records + [ (item | regex_replace('^(?P<zone>.*?) (.*?)\\.(?P=zone)\\. (.*?)$', '\\1 \\2 \\3')).split(' ', 2) ] }}"
-    #dns_txt_records_to_delete: "{{ dns_txt_records_to_delete + [ (item | regex_replace('^(?P<zone>.*?) (.*?)\\.(?P=zone)\\. (.*?)$', '\\1 \\2 \\3')).split(' ', 2) ] }}"
   with_items:
     - "{{ dns_txt_records_temp }}"
 
-- debug:
-    var: dns_txt_records
+- debug: var=dns_txt_records
+
+- name: Refactor CNAME records obtained from the dig
+  vars:
+    dns_cname_records: []
+  set_fact:
+    dns_cname_records: "{{ dns_cname_records + [ (item | regex_replace('^(?P<zone>.*?) (.*?)\\.(?P=zone)\\. (.*?)\\.(?P=zone)\\.$', '\\1 \\2 \\3')).split(' ', 2) ] }}"
+  with_items:
+    - "{{ dns_cname_records_temp }}"
+
+- debug: var=dns_cname_records
 
 - name: Refactor PTR records obtained from the dig
   vars:
@@ -519,8 +507,7 @@
   with_items:
     - "{{ dns_ptr_records_temp }}"
 
-- debug:
-    var: dns_ptr_records
+- debug: var=dns_ptr_records
 
 ################################################################################
 ######################## First, we look at the A records #######################
@@ -541,25 +528,17 @@
   with_items:
     - "{{ dns_master_zones.forward }}" 
 
-#- debug:
-#    var: inventory_a_records
+- debug: var=inventory_a_records
 
-#- debug:
-#    var: delete_list_forward_zones
-
-- name: Build A records list to insert into the DNS
+# A records to add : Records in the inventory + records in the DHCP - records in the DNS
+# A records to delete : Records in the DNS - records in the inventory - records in the DHCP
+- name: Build lists of A records to insert into and remove from the DNS
   set_fact:
     dns_a_records_to_add: "{{ inventory_a_records | union(a_records_in_dhcp|default([])) | difference(dns_a_records|default([])) }}"
-
-- name: Build A records list to delete from the DNS
-  set_fact:
     dns_a_records_to_delete: "{{ dns_a_records | difference(inventory_a_records|default([])) | difference(a_records_in_dhcp|default([])) }}"
 
-- debug:
-    var: dns_a_records_to_add
-
-- debug:
-    var: dns_a_records_to_delete
+- debug: var=dns_a_records_to_add
+- debug: var=dns_a_records_to_delete
 
 - name: Delete obsolote A records in forward zones
   nsupdate:
@@ -605,26 +584,17 @@
     - "{{ dns_master_zones.forward }}"
     - "txt_records"
 
-- debug:
-    var: inventory_txt_records
+- debug: var=inventory_txt_records
 
 # TXT records to add :
 # Records in the inventory + records in the DHCP - records in the DNS
-- name: Build TXT records list to insert into the DNS
+- name: Build lists of TXT records to insert into and remove from the DNS
   set_fact:
     dns_txt_records_to_add: "{{ inventory_txt_records | union(txt_records_in_dhcp|default([])) | difference(dns_txt_records|default([])) }}"
-
-# TXT records to delete :
-# Records in the DNS - records in the inventory - records in the DHCP
-- name: Build TXT records list to delete from the DNS
-  set_fact:
     dns_txt_records_to_delete: "{{ (dns_txt_records|default([])) | difference(inventory_txt_records|default([])) | difference(txt_records_in_dhcp|default([])) }}"
 
-- debug:
-    var: dns_txt_records_to_add
-
-- debug:
-    var: dns_txt_records_to_delete
+- debug: var=dns_txt_records_to_add
+- debug: var=dns_txt_records_to_delete
 
 - name: Delete obsolote TXT records in forward zones
   nsupdate:
@@ -660,7 +630,65 @@
     - dns_txt_records_to_add is defined
 
 ################################################################################
-####################### Next, we look at the PTR records #######################
+###################### Then, we look at the CNAME records ######################
+################################################################################
+
+- name: Read CNAME records from inventory
+  vars:
+    inventory_cname_records: []
+  set_fact:
+    inventory_cname_records: "{{ inventory_cname_records + [[ item.0.name, item.1.0, item.1.1 ]] }}"
+  with_subelements:
+    - "{{ dns_master_zones.forward }}"
+    - "cname_records"
+
+- debug: var=inventory_cname_records
+
+# CNAME records to add : Records in the inventory - records in the DNS
+# CNAME records to delete : Records in the DNS - records in the inventory
+- name: Build lists of CNAME records to insert into and remove from the DNS
+  set_fact:
+    dns_cname_records_to_add: "{{ inventory_cname_records | difference(dns_cname_records|default([])) }}"
+    dns_cname_records_to_delete: "{{ (dns_cname_records|default([])) | difference(inventory_cname_records|default([])) }}"
+
+- debug: var=dns_cname_records_to_add
+- debug: var=dns_cname_records_to_delete
+
+- name: Delete obsolote CNAME records in forward zones
+  nsupdate:
+    key_name: "{{ dns_tsig_key_name }}"
+    key_secret: "{{ dns_tsig_key_secret }}"
+    key_algorithm: "{{ dns_tsig_key_algorithm | lower }}"
+    server: "{{ ansible_host }}"
+    zone: "{{ item.0 }}"
+    record: "{{ item.1 }}"
+    value: "{{ item.2 }}"
+    type: "CNAME"
+    state: "absent"
+  with_items:
+    - "{{ dns_cname_records_to_delete }}"
+  when:
+    - dns_cname_records_to_delete is defined
+
+- name: Fill the forward zones with CNAME records
+  nsupdate:
+    key_name: "{{ dns_tsig_key_name }}"
+    key_secret: "{{ dns_tsig_key_secret }}"
+    key_algorithm: "{{ dns_tsig_key_algorithm | lower }}"
+    server: "{{ ansible_host }}"
+    zone: "{{ item.0 }}"
+    record: "{{ item.1 }}"
+    value: "{{ item.2 }}"
+    state: "present"
+    type: "CNAME"
+    ttl: 86400
+  with_items:
+    - "{{ dns_cname_records_to_add }}"
+  when:
+    - dns_cname_records_to_add is defined
+
+################################################################################
+##################### Finally, we look at the PTR records ######################
 ################################################################################
 
 - name: Read PTR records from inventory
@@ -672,26 +700,17 @@
     - "{{ dns_master_zones.reverse }}"
     - "ptr_records"
 
-- name: Build PTR records to add in the DNS ":" remove records already present in the DNS
+- debug: var=inventory_ptr_records
+
+# PTR records to add : Records in the inventory + records in the DHCP - records in the DNS
+# PTR records to delete : Records in the DNS - records in the inventory - records in the DHCP
+- name: Build lists of PTR records to insert into and remove from the DNS
   set_fact:
     dns_ptr_records_to_add: "{{ inventory_ptr_records | union(ptr_records_in_dhcp|default([])) | difference(dns_ptr_records|default([])) }}"
-  when:
-    - dns_ptr_records is defined
+    dns_ptr_records_to_delete: "{{ (dns_ptr_records|default([])) | difference(inventory_ptr_records|default([])) | difference(ptr_records_in_dhcp|default([])) }}"
 
-- debug:
-    var: inventory_ptr_records
-
-- debug:
-    var: ptr_records_in_dhcp
-
-- name: Build PTR records list to delete from the DNS
-  set_fact:
-    dns_ptr_records_to_delete: "{{ dns_ptr_records_to_delete | difference(inventory_ptr_records|default([])) | difference(ptr_records_in_dhcp|default([])) }}"
-  when:
-    - dns_ptr_records_to_delete is defined
-
-- debug:
-    var: dns_ptr_records_to_delete
+- debug: var=dns_ptr_records_to_add
+- debug: var=dns_ptr_records_to_delete
 
 - name: Delete obsolote PTR records in reverse zones
   nsupdate:
@@ -723,4 +742,4 @@
   with_items:
     - "{{ dns_ptr_records_to_add }}"
   when:
-    - dns_ptr_records is defined
+    - dns_ptr_records_to_add is defined
