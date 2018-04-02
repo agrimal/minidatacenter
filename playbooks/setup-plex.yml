@@ -12,13 +12,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-- import_playbook: setup-localhost.yml
-- import_playbook: setup-build_containers.yml
-- import_playbook: setup-containers.yml
-- import_playbook: setup-ca.yml
-- import_playbook: setup-dns.yml
-- import_playbook: setup-dhcp.yml
-- import_playbook: setup-rvprx.yml
-- import_playbook: setup-vpn.yml
-- import_playbook: setup-plex.yml
+- name: Install Plex servers
+  hosts: ubuplex01
+  remote_user: root
+  roles:
+    - plex

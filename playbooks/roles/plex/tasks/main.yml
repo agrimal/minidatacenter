@@ -1,0 +1,107 @@
+---
+- name: Update repositories cache and install package "gnupg"
+  apt:
+    name: gnupg
+    update_cache: yes
+    cache_valid_time: 3600
+    state: present
+
+- name: Add / Verify Plex repository apt key
+  apt_key:
+    url: https://downloads.plex.tv/plex-keys/PlexSign.key
+    state: present
+
+- name: Add / Verify Plex repository
+  template:
+    src: "{{ role_path }}/templates/main_plexmediaserver.list.j2"
+    dest: /etc/apt/sources.list.d/plexmediaserver.list
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Update repositories cache and install package "plexmediaserver"
+  apt:
+    name: plexmediaserver
+    update_cache: yes
+    state: present
+
+- name: Check if "/etc/systemd/system/plexmediaserver.service" exists
+  stat:
+    path: /etc/systemd/system/plexmediaserver.service
+  register: plexmediaserver_unit_file
+
+- debug:
+    var: plexmediaserver_unit_file
+
+- name: Copy "plexmediaserver.service" unit file from "/lib/systemd/system/" to "/etc/systemd/system/"
+  copy:
+    remote_src: yes
+    src: /lib/systemd/system/plexmediaserver.service
+    dest: /etc/systemd/system/plexmediaserver.service
+  when:
+  - not plexmediaserver_unit_file.stat.exists
+
+- name: Make Plex Media Server log to syslog
+  lineinfile:
+    path: /etc/systemd/system/plexmediaserver.service
+    insertafter: '\[Service]'
+    line: Environment=PLEX_MEDIA_SERVER_USE_SYSLOG=true
+  register: modify_plex_unit_file
+
+- name: Restart plexmediaserver service if needed
+  systemd:
+    daemon_reload: yes
+    name: plexmediaserver
+    state: restarted
+  when:
+  - modify_plex_unit_file.changed or
+    not plexmediaserver_unit_file.stat.exists
+
+- name: Make sure plexmediaserver service is enabled and started
+  systemd:
+    daemon_reload: yes
+    name: plexmediaserver
+    state: started
+    enabled: yes
+
+- name: Copy "/etc/rsyslog.d/01-plexmediaserver.conf"
+  copy:
+    src: "{{ role_path }}/files/main_01-plexmediaserver.conf"
+    dest: /etc/rsyslog.d/01-plexmediaserver.conf
+    owner: root
+    group: root
+    mode: 0644
+  register: copy_rsyslog_plexmediaserver_conf
+
+- name: Restart "rsyslog" service if needed
+  systemd:
+    name: rsyslog
+    state: restarted
+  when:
+  - copy_rsyslog_plexmediaserver_conf.changed
+
+- name: Copy "/etc/logrotate.d/plexmediaserver"
+  copy:
+    src: "{{ role_path }}/files/main_plexmediaserver"
+    dest: /etc/logrotate.d/plexmediaserver
+    owner: root
+    group: root
+    mode: 0644
+
+#- name: Be sure the directory "/opt/plex" exists
+#  file:
+#    path: /opt/plex
+#    state: directory
+#    owner: root
+#    group: root
+#    mode: 0755
+#
+#- name: Download Plex .deb package with check (sha1)
+#  get_url:
+#    url: "{{ plex_deb_url }}" 
+#    dest: /opt/plex
+#    checksum: "{{ plex_deb_checksum }}"
+#
+#- name: Install Plex Media Server
+#  apt:
+#    deb: "/opt/plex/{{ plex_deb_url | basename }}"

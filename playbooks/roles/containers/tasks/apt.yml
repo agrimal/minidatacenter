@@ -14,3 +14,7 @@
       - mlocate
       - net-tools
       - openssh-server
+
+- name: Verify all packages are up-to-date
+  apt:
+    upgrade: dist

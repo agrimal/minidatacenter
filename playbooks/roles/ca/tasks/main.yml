@@ -32,9 +32,11 @@
     state: directory
     mode: "{{ item.mode }}"
   with_items:
-    - "{{ find_result_easy_rsa_source_dir.files }}"
+  - "{{ find_result_easy_rsa_source_dir.files }}"
   when:
-    - item.isdir
+  - item.isdir
+  loop_control:
+    label: "{{ item.path }}"  
 
 # Copy all files except directories and 'vars'
 - name: Copy the files (except 'vars') from "{{ easy_rsa_source_dir }}" to "{{ ca_easy_rsa_install_dir }}"
@@ -47,6 +49,8 @@
     - "{{ find_result_easy_rsa_source_dir.files }}"
   when:
     - (item.isdir == False) and (item.path != (easy_rsa_source_dir + "/vars"))
+  loop_control:
+    label: "{{ item.path }}"  
 
 - name: Create the directory "keys" in "{{ ca_easy_rsa_install_dir }}"
   file:
