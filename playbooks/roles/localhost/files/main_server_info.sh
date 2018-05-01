@@ -28,13 +28,13 @@ echo -e "   ${yellow}Load Average :${normal} `cat /proc/loadavg | awk '{print $1
 echo ""
 echo -e "   ${yellow}Disk usage :${normal}"
 echo ""
-echo -e "${cyan}ZFS_Pool Total_Size Used\n${normal}`for POOL in $POOLLIST; do zfs list $POOL | grep -v NAME | awk '{printf "%-10.10s %10.5s %10.5s\n",$1, $3, $2}'; done`" | column -t | awk '{print "     ", $0}'
+echo -e "${cyan}ZFS_Pool Total_Size Used Free Frag Cap Dedup\n${normal}`for POOL in $POOLLIST; do zpool list $POOL | grep -v NAME | awk '{print $1, $2, $3, $4, $6, $7, $8}'; done`" | column -t | awk '{print "     ", $0}'
+#echo -e "${cyan}ZFS_Pool Total_Size Used Free Frag Cap Dedup\n${normal}`for POOL in $POOLLIST; do zfs list $POOL | grep -v NAME | awk '{printf "%-10.10s %10.5s %10.5s\n",$1, $3, $2}'; done`" | column -t | awk '{print "     ", $0}'
 echo -e ""
-echo -e "${cyan}ZFS_Dataset Size Used Avail.\n${normal}`df -TPh | grep zfs | awk '{print $1, $3, $6, $5}'`" | column -t | awk '{print "     ", $0}'
+echo -e "${cyan}ZFS_Datasets\n${normal}`zfs list -o name,used,usedsnap,avail,mountpoint -d 2`" | column -t | awk '{print "     ", $0}'
 echo ""
 echo -e "   ${yellow}IP Addresses :${normal}"
 echo "" 
-#echo -e "`ip a | grep inet | grep -v 'host lo' | awk '{print $7, ":", $2}' | awk '{print "     ", $0}'`"
 echo -e "`ip a | grep inet | awk '{print ($5=="lo")? $5 : $7, ":", $2}' | awk '{print "     ", $0}'`"
 echo ""
 echo -e "${blue}┃┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛┃${normal}"

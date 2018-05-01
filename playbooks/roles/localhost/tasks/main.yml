@@ -41,6 +41,7 @@
     - traceroute
     - vim
     - tree
+    - jq
 
 - name: Verify all packages are up-to-date
   apt:
@@ -105,7 +106,7 @@
   replace:
     path: /etc/systemd/system.conf
     regexp: '^#?(DefaultLimitMEMLOCK=).*$'
-    replace: '\g<1>unlimited'
+    replace: '\g<1>infinity'
 
 - name: Modify system configuration in "/etc/sysctl.d/99-sysctl.conf"
   blockinfile:

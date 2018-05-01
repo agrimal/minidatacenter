@@ -777,3 +777,80 @@
     - "{{ dns_ptr_records_to_add }}"
   when:
     - dns_ptr_records_to_add is defined
+
+- name: Check if checkPublicIP.py, getConsumerKey.py and ovh.conf are located in "{{ minidc_working_directory }}/{{ inventory_hostname }}/usr/local/sbin" on localhost
+  local_action:
+    module: stat
+    path: "{{ minidc_working_directory }}/{{ inventory_hostname }}/usr/local/sbin/{{ item }}"
+  loop:
+  - checkPublicIP.py
+  - getConsumerKey.py
+  - ovh.conf
+  register: checkip_files
+
+- set_fact:
+    checkip_files_exists: True
+  when:
+  - checkip_files.results[0].stat.exists
+  - checkip_files.results[1].stat.exists
+  - checkip_files.results[2].stat.exists
+
+- name: Copy checkPublicIP.py, getConsumerKey.py and ovh.conf in "/usr/local/sbin"
+  copy:
+    src: "{{ minidc_working_directory }}/{{ inventory_hostname }}/usr/local/sbin/{{ item.0 }}"
+    dest: /usr/local/sbin/
+    owner: root
+    group: root
+    mode: "{{ item.1 }}"
+  loop: "{{ query('together', ['checkPublicIP.py', 'getConsumerKey.py', 'ovh.conf'], [0744, 0744, 0644]) }}"
+  register: etc_bind_named_conf_logs_task
+  when:
+  - checkip_files_exists is defined
+
+- name: Install OVH pip package
+  pip:
+    name: ovh
+  when:
+  - checkip_files_exists is defined
+
+- name: Create check_public_ip.service or verify it exists
+  copy:
+    content: |
+      [Unit]
+      Description=Check Public IP service
+
+      [Service]
+      ExecStart=/usr/local/sbin/checkPublicIP.py
+      Type=oneshot 
+    dest: /etc/systemd/system/check_public_ip.service
+    owner: root
+    group: root
+    mode: 0644 
+  when:
+  - checkip_files_exists is defined
+
+- name: Create check_public_ip.timer or verify it exists
+  copy:
+    content: |
+      [Unit]
+      Description=Run check_public_ip every 15 to 20 minutes
+
+      [Timer]
+      OnCalendar=*:0/20
+      RandomizedDelaySec=5min
+
+      [Install]
+      WantedBy=timers.target 
+    dest: /etc/systemd/system/check_public_ip.timer
+    owner: root
+    group: root
+    mode: 0644 
+  when:
+  - checkip_files_exists is defined
+
+- name: Reload systemd
+  systemd:
+    daemon-reload: yes
+    name: check_public_ip.timer
+    enabled: yes
+    state: started
