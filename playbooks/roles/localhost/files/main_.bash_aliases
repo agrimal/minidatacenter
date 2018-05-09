@@ -7,4 +7,6 @@ alias deploy_dns='/opt/minidc/python-venv/bin/ansible-playbook -i /opt/minidc/in
 alias deploy_dhcp='/opt/minidc/python-venv/bin/ansible-playbook -i /opt/minidc/inventory.yml /opt/minidc/playbooks/setup-dhcp.yml'
 alias deploy_rvprx='/opt/minidc/python-venv/bin/ansible-playbook -i /opt/minidc/inventory.yml /opt/minidc/playbooks/setup-rvprx.yml'
 alias deploy_vpn='/opt/minidc/python-venv/bin/ansible-playbook -i /opt/minidc/inventory.yml /opt/minidc/playbooks/setup-vpn.yml'
+alias deploy_ldap='/opt/minidc/python-venv/bin/ansible-playbook -i /opt/minidc/inventory.yml /opt/minidc/playbooks/setup-ldap.yml'
+alias deploy_lam='/opt/minidc/python-venv/bin/ansible-playbook -i /opt/minidc/inventory.yml /opt/minidc/playbooks/setup-lam.yml'
 alias deploy_plex='/opt/minidc/python-venv/bin/ansible-playbook -i /opt/minidc/inventory.yml /opt/minidc/playbooks/setup-plex.yml'

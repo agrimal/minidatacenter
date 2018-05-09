@@ -15,13 +15,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Packages needed for ldap-python :
+# apt install gcc python3-dev libdpkg-perl libldap2-dev libsasl2-dev 
+
 # The parent directory of this script
 DIR="$(cd "$(dirname "$0")/.."; pwd)"
 
 # Packages version
-ANSIBLE_VERSION="2.5.0"
+ANSIBLE_VERSION="2.5.2"
 NETADDR_VERSION="0.7.19"
 DNSPYTHON_VERSION="1.15.0"
+PYTHON_LDAP_VERSION="3.0.0"
 
 # Install package virtualenv if not already installed
 dpkg-query -W -f='${Status}' virtualenv | grep 'ok installed' > /dev/null 2>&1
@@ -43,7 +47,8 @@ source ${DIR}/python-venv/bin/activate
 pip install \
     ansible==$ANSIBLE_VERSION \
     netaddr==$NETADDR_VERSION \
-    dnspython==$DNSPYTHON_VERSION
+    dnspython==$DNSPYTHON_VERSION \
+    python-ldap==$PYTHON_LDAP_VERSION
 #    pylxd==$PYLXD_VERSION \
 
 # Make symbolic link to easily launch ansible
