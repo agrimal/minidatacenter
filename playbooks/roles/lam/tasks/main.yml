@@ -12,7 +12,7 @@
   - rsync
 
 - name: clears out the local repository of retrieved package files
-  command: apt-get clean
+  command: apt-get clean warn=false
   changed_when: false
 
 - name: Add user "www-data" in group "ssl-cert"
