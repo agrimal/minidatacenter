@@ -18,50 +18,63 @@ Configuration
 
 Example :
 ```yaml
-                lam-container:
-                    network:
-                        ethernets:
-                            ethint:
-                                addresses: ['10.0.0.8/24']
-                            ethext:
-                                addresses: ['192.168.0.8/24']
-                                gateway4: '192.168.0.1'
-                                routes:
-                                - to: '0.0.0.0/0'
-                                  via: '192.168.0.1'
-                                nameservers:
-                                    addresses: ['192.168.0.2', '192.168.0.1']
-                    ansible_host: '10.0.0.8'
-                    ca_pair: ca-container
-                    lam_certificate: lam.example.com
-                    lam_url: lam.example.com
-                    lam_admin_mail: admin@example.com
-                    push_config: false
+all:
+    children:
+        containers:
+            children:
+                ldap:
+                    hosts:
+                        lam-container:
+                            network:
+                                ethernets:
+                                    ethint:
+                                        addresses: ['10.0.0.8/24']
+                                    ethext:
+                                        addresses: ['192.168.0.8/24']
+                                        gateway4: '192.168.0.1'
+                                        routes:
+                                        - to: '0.0.0.0/0'
+                                          via: '192.168.0.1'
+                                        nameservers:
+                                            addresses: ['192.168.0.2', '192.168.0.1']
+                            ansible_host: '10.0.0.8'
+                            ca_pair: ca-container
+                            lam_certificate: lam.example.com
+                            lam_url: lam.example.com
+                            lam_admin_mail: admin@example.com
+                            ldap_url: ldap.example.private
+                            ldap_rootdn: 'dc=example,dc=com'
+                            push_config: false
 ```
 
 Details
 =======
 
-ca_pair: {string}
-    Name of the container providing certificates.
+**ca_pair:** `string`
 
-lam_certificate: {string}
-    Name of the certificate. Must be declared too in the "ca_certificates"
+   Name of the container providing certificates.
+
+**lam_certificate:** `string`
+
+   Name of the certificate. Must be declared too in the "ca_certificates"
   section of the CA container.
 
-lam_url: {string}
-    Web URL for accessing LAM. Must be declared too in the right DNS section.
+**ldap_url:** `string`
 
-lam_admin_mail: {string}
+   URL of LAM server.
+
+**lam_admin_mail:** `string`
     Mail of the administrator
 
-push_config: {boolean}
-    If true, the config files will be copied from localhost to the container.
+**push_config:** `boolean`
+   If true, the config files will be copied from localhost to the container.
   This is usefull if you want to restore a backup. If the files don't exist on
-  localhost, this variable is considered false.
-    If false, the config files will be copied from the container to localhost.
+  localhost, nothing is done.
+  
+   If false, the config files will be copied from the container to localhost.
   This is usefull if you want to save your configuration.
-    The directory used to store the files on localhost is the one declared in the
+  
+   The directory used to store the files on localhost is the one declared in the
   'minidc_working_directory' variable.
 
 First Use
@@ -84,7 +97,7 @@ is 'lam'. Click "Ok".
 
 Example minimum config :
 
-1) "General Settings" tab :
+### "General Settings" tab :
 
 - Server settings
 Server address : ldap://ldap.example.private:389
@@ -98,7 +111,7 @@ List of valid users : cn=admin,dc=example,dc=com
 
 - Profile password : change the default password
 
-2) "Account types" tab :
+### "Account types" tab :
 
 - Users
 LDAP Suffix : ou=people,dc=tech-tips,dc=fr
@@ -121,13 +134,13 @@ Custom label : Applications
 Additional LDAP filter : leave empty
 Hidden : leave unchecked
 
-3) "Modules" tab :
+### "Modules" tab :
 
 - Users : Personal (inetOrgPerson), Unix (posixAccount), Shadow (shadowAccount)
 - Groups : Unix (posixGroup)
 - Applications : Account (account), Unix (posixAccount), Shadow (shadowAccount)
 
-4) "Module settings" tab :
+### "Module settings" tab :
 
 - In the first "Unix" section :
 Change "Password hash type" from "SSHA" to "CRYPT-SHA512"
@@ -137,9 +150,13 @@ to "%givenname%.%sn%"
 Now click on the save button, go back on the profile configuration page, log in
 with your new password, and verify every parameter again.
 
+ENJOY
+=====
+
 Now you can start using LAM.
-Go to the home LAM page, and log in with "admin/password" credentials.
-On the first login, LAM detects that OU are missing and propose to create them :
+
+- Go to the home LAM page, and log in with "admin/password" credentials.
+- On the first login, LAM detects that OU are missing and propose to create them :
 
 ```
 The following suffixes are missing in LDAP. LAM can create them for you.
@@ -150,15 +167,12 @@ ou=group,dc=example,dc=com
 ou=applications,dc=example,dc=com
 ```
 
-Click "Create"
+- Click "Create"
 
-Change admin password :
-Click on the "Tree View" button on the upper right corner.
-Under dc=example,dc=com, click on "cn=admin".
-In the "userPassword" section, enter your password, change "ssha" to
+- Change admin password :
+  - Click on the "Tree View" button on the upper right corner.
+  - Under dc=example,dc=com, click on "cn=admin".
+  - In the "userPassword" section, enter your password, change "ssha" to
 "crypt-sha512" and click "Update object"
 
-ENJOY
-=====
-
-Create groups, users, applicative accounts, modify LAM to what you need.
+- Create groups, users, applicative accounts, modify LAM to what you need.
