@@ -90,7 +90,7 @@ For example, 'foo.example.org' will create the directory with
 
    If true, the config files will be copied from localhost to the container.
   This is usefull if you want to restore a backup. If the files don't exist on
-  localhost, this variable is considered false.
+  localhost, nothing is done.
    If false, the config files will be copied from the container to localhost.
   This is usefull if you want to save your configuration.
    The directory used to store the files on localhost is the one declared in the
