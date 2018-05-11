@@ -1,0 +1,6 @@
+/var/log/slapd/*.log {
+    daily
+    rotate 30
+    missingok
+    ifempty
+}

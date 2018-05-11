@@ -9,6 +9,11 @@
   - ldap-account-manager
   - ldap-utils
   - ssl-cert
+  - rsync
+
+- name: clears out the local repository of retrieved package files
+  command: apt-get clean
+  changed_when: false
 
 - name: Add user "www-data" in group "ssl-cert"
   user:
@@ -89,6 +94,12 @@
   register: a2ensite_port443lam_task
   when: port443lam_vhost_status_task.rc != 0
 
+- name: Modify "/etc/apache2/mods-available/mpm_prefork.conf" (number of apache2 workers)
+  copy:
+    src: "{{ role_path }}/files/main_mpm_prefork.conf"
+    dest: /etc/apache2/mods-available/mpm_prefork.conf
+  register: modify_mod_mpm_prefork_task
+
 - name: Reload apache2 systemd service
   systemd:
     name: apache2
@@ -97,129 +108,63 @@
   - a2enmod_task.changed or
     a2dissite_000default_task is defined and a2dissite_000default_task.changed or
     a2ensite_port80redirect_task is defined and a2ensite_port80redirect_task.changed or
-    a2ensite_port443lam_task is defined and a2ensite_port443lam_task.changed
+    a2ensite_port443lam_task is defined and a2ensite_port443lam_task.changed or
+    modify_mod_mpm_prefork_task.changed
 
-#- name: Restart slapd service if configuration has changed
-#  systemd:
-#    name: slapd
-#    state: restarted
-#  when:
-#  - modify_etc_default_slapd_task.changed or
-#    modify_etc_systemd_system_conf_task.changed or
-#    modify_openldap_group_task.changed or
-#    copy_ca_crt_task.changed or
-#    copy_ldap_crt_task.changed or
-#    copy_ldap_key_task.changed
 #
+# Backup / Restore
 #
-#- set_fact:
-#    ldapsearch_command: ldapsearch -o ldif-wrap=no -Q -Y external -H ldapi:///
-#    ldapmodify_command: ldapmodify -Y external -H ldapi:///
-#    slapd_log_level: stats
-#    olcDatabase_config_olcAccess: to * by dn.exact=cn=admin,{{ ldap_rootdn }} manage by * break
-#    config_olcTLSCACertificateFile: /etc/ssl/certs/ca.crt
-#    config_olcTLSCertificateFile: /etc/ssl/certs/{{ ldap_certificate }}.crt
-#    config_olcTLSCertificateKeyFile: /etc/ssl/private/{{ ldap_certificate }}.key
-#
-#- name: Create directory "/srv/slapd"
-#  file:
-#    path: /srv/slapd
-#    state: directory
-#
-## olcLogLevel for cn=config
-#
-#- name: Copy file slapdloglevel.ldif
-#  template:
-#    src: "{{ role_path }}/templates/main_slapdloglevel.ldif.j2"
-#    dest: /srv/slapd/slapdloglevel.ldif
-#
-#- name: Execute ldapsearch to get olcLogLevel attribute value for cn=config
-#  command: ldapsearch -Q -Y external -H ldapi:/// -b cn=config "(cn=config)" olcLogLevel -LLL
-#  register: ldapsearch_olcLogLevel
-#  changed_when: False
-#
-#- name: Extract olcLogLevel attribute value from previous ldapsearch
-#  set_fact:
-#    current_slapd_log_level: "{{ ldapsearch_olcLogLevel.stdout_lines | select('match', 'olcLogLevel:') | list | join('') | regex_replace('olcLogLevel: ', '') }}"
-#
-#- name: Modify slapd log level
-#  command: "{{ ldapmodify_command }} -f /srv/slapd/slapdloglevel.ldif"
-#  when: slapd_log_level != current_slapd_log_level
-#
-## olcAccess for olcDatabase={0}config,cn=config
-#
-#- name: Copy file config_olcAccess.ldif
-#  template:
-#    src: "{{ role_path }}/templates/main_config_olcAccess.ldif.j2"
-#    dest: /srv/slapd/config_olcAccess.ldif
-#
-#- name: Execute ldapsearch to get olcAccess attribute value for "olcDatabase={0}config,cn=config"
-#  command: "{{ ldapsearch_command }} -b cn=config '(olcDatabase={0}config)' olcAccess -LLL"
-#  register: ldapsearch_olcDatabase_config_olcAccess
-#  changed_when: False
-#
-#- name: Extract olcAccess attribute value from previous ldapsearch
-#  set_fact:
-#    current_olcDatabase_config_olcAccess: "{{ ldapsearch_olcDatabase_config_olcAccess.stdout | regex_replace('\\n', '') | regex_replace('.*olcAccess: \\{0\\}(.*)', '\\1') }}"
-#
-#- name: Modify olcAccess attribute for "olcDatabase={0}config,cn=config"
-#  command: "{{ ldapmodify_command }} -f /srv/slapd/config_olcAccess.ldif"
-#  when: olcDatabase_config_olcAccess != current_olcDatabase_config_olcAccess
-#
-## olcTLS... for cn=config
-#
-#- name: Copy olcTLS LDIF files
-#  template:
-#    src: "{{ role_path }}/templates/main_config_{{ item }}.ldif.j2"
-#    dest: /srv/slapd/config_{{ item }}.ldif
-#  loop:
-#  - olcTLS_attributes_add
-#  - olcTLSCACertificateFile_modify
-#  - olcTLSCertificateFile_modify
-#  - olcTLSCertificateKeyFile_modify
-#
-#- name: Execute ldapsearch to get olcTLSCACertificateFile attribute value for "cn=config"
-#  command: "{{ ldapsearch_command }} -b cn=config '(cn=config)' olcTLSCACertificateFile -LLL"
-#  register: ldapsearch_config_olcTLSCACertificateFile
-#  changed_when: False
-#
-#- name: Execute ldapsearch to get olcTLSCertificateFile attribute value for "cn=config"
-#  command: "{{ ldapsearch_command }} -b cn=config '(cn=config)' olcTLSCertificateFile -LLL"
-#  register: ldapsearch_config_olcTLSCertificateFile
-#  changed_when: False
-#
-#- name: Execute ldapsearch to get olcTLSCertificateKeyFile attribute value for "cn=config"
-#  command: "{{ ldapsearch_command }} -b cn=config '(cn=config)' olcTLSCertificateKeyFile -LLL"
-#  register: ldapsearch_config_olcTLSCertificateKeyFile
-#  changed_when: False
-#
-#- name: Extract olcTLS... attributes values from previous ldapsearches
-#  set_fact:
-#    current_config_olcTLSCACertificateFile: "{{ ldapsearch_config_olcTLSCACertificateFile.stdout | regex_replace('\\n', '') | regex_replace('.*olcTLSCACertificateFile::? (.*)', '\\1') }}"
-#    current_config_olcTLSCertificateFile: "{{ ldapsearch_config_olcTLSCertificateFile.stdout | regex_replace('\\n', '') | regex_replace('.*olcTLSCertificateFile::? (.*)', '\\1') }}"
-#    current_config_olcTLSCertificateKeyFile: "{{ ldapsearch_config_olcTLSCertificateKeyFile.stdout | regex_replace('\\n', '') | regex_replace('.*olcTLSCertificateKeyFile::? (.*)', '\\1') }}"
-#
-#- name: Add olcTLS... attributes for "cn=config"
-#  command: "{{ ldapmodify_command }} -f /srv/slapd/config_olcTLS_attributes_add.ldif"
-#  when:
-#  - "current_config_olcTLSCACertificateFile == 'dn: cn=config'"
-#  - "current_config_olcTLSCertificateFile == 'dn: cn=config'"
-#  - "current_config_olcTLSCertificateKeyFile == 'dn: cn=config'"
-#
-#- name: Modify olcTLSCACertificateFile attribute for "cn=config"
-#  command: "{{ ldapmodify_command }} -f /srv/slapd/config_olcTLSCACertificateFile_modify.ldif"
-#  when:
-#  - current_config_olcTLSCACertificateFile != config_olcTLSCACertificateFile
-#  - "current_config_olcTLSCACertificateFile != 'dn: cn=config'"
-#
-#- name: Modify olcTLSCertificateFile attribute for "cn=config"
-#  command: "{{ ldapmodify_command }} -f /srv/slapd/config_olcTLSCertificateFile_modify.ldif"
-#  when:
-#  - current_config_olcTLSCertificateFile != config_olcTLSCertificateFile
-#  - "current_config_olcTLSCertificateFile != 'dn: cn=config'"
-#
-#- name: Modify olcTLSCertificateKeyFile attribute for "cn=config"
-#  command: "{{ ldapmodify_command }} -f /srv/slapd/config_olcTLSCertificateKeyFile_modify.ldif"
-#  when:
-#  - current_config_olcTLSCertificateKeyFile != config_olcTLSCertificateKeyFile
-#  - "current_config_olcTLSCertificateKeyFile != 'dn: cn=config'"
+
+- name: Check if "/etc/ldap-account-manager/config.cfg" exists in "{{ minidc_working_directory }}/{{ inventory_hostname }}"
+  local_action:
+    module: stat
+    path: "{{ minidc_working_directory }}/{{ inventory_hostname }}/etc/ldap-account-manager/config.cfg"
+  register: config_cfg_on_localhost
+
+- name: Check if "/var/lib/ldap-account-manager/config" exists in "{{ minidc_working_directory }}/{{ inventory_hostname }}"
+  local_action:
+    module: stat
+    path: "{{ minidc_working_directory }}/{{ inventory_hostname }}/var/lib/ldap-account-manager/config"
+  register: config_dir_on_localhost
+
+# Restore
+
+- name: Copy "/etc/ldap-account-manager/config.cfg" from "{{ minidc_working_directory }}/{{ inventory_hostname }}" on localhost to the container
+  copy:
+    src: "{{ minidc_working_directory }}/{{ inventory_hostname }}/etc/ldap-account-manager/config.cfg"
+    dest: /etc/ldap-account-manager/config.cfg
+  when:
+  - push_config
+  - config_cfg_on_localhost.stat.exists
+
+- name: Copy "/var/lib/ldap-account-manager/config" directory from "{{ minidc_working_directory }}/{{ inventory_hostname }}" on localhost to the container
+  synchronize:
+    mode: push
+    archive: yes
+    delete: yes
+    src: "{{ minidc_working_directory }}/{{ inventory_hostname }}/var/lib/ldap-account-manager/config"
+    dest: /var/lib/ldap-account-manager/
+  when: push_config
+
+# Backup
+
+- name: Fetch "/etc/ldap-account-manager/config.cfg" file (in "{{ minidc_working_directory }}/{{ inventory_hostname }}" on localhost)
+  fetch:
+    src: /etc/ldap-account-manager/config.cfg
+    dest: "{{ minidc_working_directory }}"
+  when: not push_config
+
+- name: Be sure that "{{ minidc_working_directory }}/{{ inventory_hostname }}/var/lib/ldap-account-manager" directory exists
+  local_action:
+    module: file
+    path: "{{ minidc_working_directory }}/{{ inventory_hostname }}/var/lib/ldap-account-manager"
+    state: directory
+
+- name: Fetch "/var/lib/ldap-account-manager/config" directory
+  synchronize:
+    mode: pull
+    archive: yes
+    delete: yes
+    src: /var/lib/ldap-account-manager/config
+    dest: "{{ minidc_working_directory }}/{{ inventory_hostname }}/var/lib/ldap-account-manager/"
+  when: not push_config

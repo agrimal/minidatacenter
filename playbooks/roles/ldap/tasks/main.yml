@@ -6,12 +6,18 @@
     cache_valid_time: 3600
     state: present
 
+- name: Read slapd debconf selections
+  debconf:
+    name: slapd
+  register: debconf_slapd
+
 - name: Configure slapd debconf selections "shared/organization"
   debconf:
     name: slapd
     question: shared/organization
     value: "{{ ldap_organization }}"
     vtype: string
+  when: debconf_slapd['current']['shared/organization'] is not defined
 
 - name: Configure slapd debconf selections "slapd/domain"
   debconf:
@@ -19,6 +25,7 @@
     question: slapd/domain
     value: "{{ ldap_domain }}"
     vtype: string
+  when: debconf_slapd['current']['slapd/domain'] is not defined
 
 - name: Configure slapd debconf selections "slapd/purge_database"
   debconf:
@@ -26,6 +33,23 @@
     question: slapd/purge_database
     value: "true"
     vtype: boolean
+  when: debconf_slapd['current']['slapd/purge_database'] is not defined
+
+- name: Configure slapd debconf selections "slapd/password1"
+  debconf:
+    name: slapd
+    question: slapd/password1
+    value: password
+    vtype: password
+  when: debconf_slapd['current']['slapd/password1'] is not defined
+
+- name: Configure slapd debconf selections "slapd/password2"
+  debconf:
+    name: slapd
+    question: slapd/password2
+    value: password
+    vtype: password
+  when: debconf_slapd['current']['slapd/password1'] is not defined
 
 - name: Install packages
   apt:
@@ -40,6 +64,10 @@
 #  - python3-pip
 #  - libldap2-dev
 #  - libsasl2-dev
+
+- name: clears out the local repository of retrieved package files
+  command: apt-get clean warn=false
+  changed_when: false
 
 #- name: Install "python-ldap" pip package
 #  pip:
@@ -101,6 +129,133 @@
     copy_ldap_crt_task.changed or
     copy_ldap_key_task.changed
 
+- name: Copy "/etc/rsyslog.d/01-slapd.conf"
+  copy:
+    src: "{{ role_path }}/files/main_01-slapd.conf"
+    dest: /etc/rsyslog.d/01-slapd.conf
+    owner: root
+    group: root
+    mode: 0644
+  register: copy_rsyslog_slapd_conf_task
+
+- name: Verify that "/var/log/slapd" directory exists
+  file:
+    path: /var/log/slapd
+    state: directory
+    owner: syslog
+    group: syslog
+    mode: 0755
+
+- name: Verify that "/srv/slapd" directory exists
+  file:
+    path: /srv/slapd
+    state: directory
+    owner: openldap
+
+- name: Restart rsyslog service
+  systemd:
+    name: rsyslog
+    state: restarted
+  when:
+    - copy_rsyslog_slapd_conf_task.changed
+
+- name: Configure logrotate for slapd
+  copy:
+    src: "{{ role_path }}/files/main_slapd"
+    dest: /etc/logrotate.d/slapd
+    owner: root
+    group: root
+    mode: 0644
+
+#
+# Restore backups
+#
+
+- name: Check if config backup exists
+  local_action:
+    module: stat
+    path: "{{ minidc_working_directory }}/{{ inventory_hostname }}/srv/slapd/backup_config.ldif"
+  register: config_backup_on_localhost
+  when: push_config
+
+- name: Check if mdb backup exists
+  local_action:
+    module: stat
+    path: "{{ minidc_working_directory }}/{{ inventory_hostname }}/srv/slapd/backup_mdb.ldif"
+  register: mdb_backup_on_localhost
+  when: push_config
+
+- fail:
+    msg: "{{ minidc_working_directory }}/{{ inventory_hostname }}/srv/slapd/backup_config.ldif does not exist"
+  when:
+  - push_config
+  - not config_backup_on_localhost.stat.exists
+
+- fail:
+    msg: "{{ minidc_working_directory }}/{{ inventory_hostname }}/srv/slapd/backup_mdb.ldif does not exist"
+  when:
+  - push_config
+  - not mdb_backup_on_localhost.stat.exists
+
+- name: Copy backups into the container
+  copy:
+    src: "{{ minidc_working_directory }}/{{ inventory_hostname }}/srv/slapd/backup_{{ item }}.ldif"
+    dest: /tmp/slapd/
+  loop:
+  - config
+  - mdb
+  when: push_config
+
+- name: Stop slapd service
+  systemd:
+    name: slapd
+    state: stopped
+  when: push_config
+
+- name: Delete files in "/etc/ldap/slapd.d"
+  file:
+    path: /etc/ldap/slapd.d
+    state: "{{ item }}"
+    owner: openldap
+    group: openldap
+  loop:
+  - absent
+  - directory
+  when: push_config
+
+- name: Restore "cn=config" database
+  become: yes
+  become_user: openldap
+  command: slapadd -F /etc/ldap/slapd.d -b cn=config -l /tmp/slapd/backup_config.ldif
+  when: push_config
+
+- name: Delete files in "/var/lib/ldap"
+  file:
+    path: /var/lib/ldap
+    state: "{{ item }}"
+    owner: openldap
+    group: openldap
+  loop:
+  - absent
+  - directory
+  when: push_config
+
+- name: Restore "{{ ldap_rootdn }}" database
+  become: yes
+  become_user: openldap
+  command: slapadd -F /etc/ldap/slapd.d -b "{{ ldap_rootdn }}" -l /tmp/slapd/backup_mdb.ldif
+  when: push_config
+
+- name: Start slapd service
+  systemd:
+    name: slapd
+    state: started
+  when: push_config
+
+#
+# Configure LDAP databases
+#
+
 #- name: Change access to "cn=config"
 #  ldap_attr:
 #    dn: olcDatabase={0}config,cn=config
@@ -120,56 +275,98 @@
 - set_fact:
     ldapsearch_command: ldapsearch -o ldif-wrap=no -Q -Y external -H ldapi:///
     ldapmodify_command: ldapmodify -Y external -H ldapi:///
-    slapd_log_level: stats
-    olcDatabase_config_olcAccess: to * by dn.exact=cn=admin,{{ ldap_rootdn }} manage by * break
+    config_olcLogLevel: stats
+    config_olcAccess: to * by dn.exact=cn=admin,{{ ldap_rootdn }} manage by * break
     config_olcTLSCACertificateFile: /etc/ssl/certs/ca.crt
     config_olcTLSCertificateFile: /etc/ssl/certs/{{ ldap_certificate }}.crt
     config_olcTLSCertificateKeyFile: /etc/ssl/private/{{ ldap_certificate }}.key
-
-- name: Create directory "/srv/slapd"
-  file:
-    path: /srv/slapd
-    state: directory
+    config_olcPasswordHash: "{CRYPT}"
+    config_olcPasswordCryptSaltFormat: $6$%.16s
 
 # olcLogLevel for cn=config
 
-- name: Copy file slapdloglevel.ldif
+- name: Copy file config_olcLogLevel_modify.ldif
   template:
-    src: "{{ role_path }}/templates/main_slapdloglevel.ldif.j2"
-    dest: /srv/slapd/slapdloglevel.ldif
+    src: "{{ role_path }}/templates/main_config_olcLogLevel_modify.ldif.j2"
+    dest: /srv/slapd/config_olcLogLevel_modify.ldif
 
 - name: Execute ldapsearch to get olcLogLevel attribute value for cn=config
-  command: ldapsearch -Q -Y external -H ldapi:/// -b cn=config "(cn=config)" olcLogLevel -LLL
-  register: ldapsearch_olcLogLevel
+  command: "{{ ldapsearch_command }} -b cn=config '(cn=config)' olcLogLevel -LLL"
+  register: ldapsearch_config_olcLogLevel
   changed_when: False
 
 - name: Extract olcLogLevel attribute value from previous ldapsearch
   set_fact:
-    current_slapd_log_level: "{{ ldapsearch_olcLogLevel.stdout_lines | select('match', 'olcLogLevel:') | list | join('') | regex_replace('olcLogLevel: ', '') }}"
+    current_config_olcLogLevel: "{{ ldapsearch_config_olcLogLevel.stdout_lines | select('match', 'olcLogLevel:') | list | join('') | regex_replace('olcLogLevel: ', '') }}"
 
-- name: Modify slapd log level
-  command: "{{ ldapmodify_command }} -f /srv/slapd/slapdloglevel.ldif"
-  when: slapd_log_level != current_slapd_log_level
+- name: Modify olcLogLevel attribute for "cn=config"
+  command: "{{ ldapmodify_command }} -f /srv/slapd/config_olcLogLevel_modify.ldif"
+  when: config_olcLogLevel != current_config_olcLogLevel
 
-# olcAccess for olcDatabase={0}config,cn=config
+# olcPassword... for cn=config
 
-- name: Copy file config_olcAccess.ldif
+- name: Copy olcPassword LDIF files
   template:
-    src: "{{ role_path }}/templates/main_config_olcAccess.ldif.j2"
-    dest: /srv/slapd/config_olcAccess.ldif
+    src: "{{ role_path }}/templates/main_config_{{ item }}.ldif.j2"
+    dest: /srv/slapd/config_{{ item }}.ldif
+  loop:
+  - olcPassword_attributes_add
+  - olcPasswordHash_modify
+  - olcPasswordCryptSaltFormat_modify
 
-- name: Execute ldapsearch to get olcAccess attribute value for "olcDatabase={0}config,cn=config"
-  command: "{{ ldapsearch_command }} -b cn=config '(olcDatabase={0}config)' olcAccess -LLL"
-  register: ldapsearch_olcDatabase_config_olcAccess
+- name: Execute ldapsearch to get olcPasswordHash attribute value for "cn=config"
+  command: "{{ ldapsearch_command }} -b cn=config '(cn=config)' olcPasswordHash -LLL"
+  register: ldapsearch_config_olcPasswordHash
   changed_when: False
 
-- name: Extract olcAccess attribute value from previous ldapsearch
-  set_fact:
-    current_olcDatabase_config_olcAccess: "{{ ldapsearch_olcDatabase_config_olcAccess.stdout | regex_replace('\\n', '') | regex_replace('.*olcAccess: \\{0\\}(.*)', '\\1') }}"
+- name: Execute ldapsearch to get olcPasswordCryptSaltFormat attribute value for "cn=config"
+  command: "{{ ldapsearch_command }} -b cn=config '(cn=config)' olcPasswordCryptSaltFormat -LLL"
+  register: ldapsearch_config_olcPasswordCryptSaltFormat
+  changed_when: False
 
-- name: Modify olcAccess attribute for "olcDatabase={0}config,cn=config"
-  command: "{{ ldapmodify_command }} -f /srv/slapd/config_olcAccess.ldif"
-  when: olcDatabase_config_olcAccess != current_olcDatabase_config_olcAccess
+- name: Extract olcPassword... attributes values from previous ldapsearches
+  set_fact:
+    current_config_olcPasswordHash: "{{ ldapsearch_config_olcPasswordHash.stdout | regex_replace('\\n', '') | regex_replace('.*olcPasswordHash::? (.*)', '\\1') }}"
+    current_config_olcPasswordCryptSaltFormat: "{{ ldapsearch_config_olcPasswordCryptSaltFormat.stdout | regex_replace('\\n', '') | regex_replace('.*olcPasswordCryptSaltFormat::? (.*)', '\\1') }}"
+
+- name: Add olcPassword... attributes for "cn=config"
+  command: "{{ ldapmodify_command }} -f /srv/slapd/config_olcPassword_attributes_add.ldif"
+  when:
+  - "current_config_olcPasswordHash == 'dn: cn=config'"
+  - "current_config_olcPasswordCryptSaltFormat == 'dn: cn=config'"
+
+- name: Modify olcPasswordHash attribute for "cn=config"
+  command: "{{ ldapmodify_command }} -f /srv/slapd/config_olcPasswordHash_modify.ldif"
+  when:
+  - current_config_olcPasswordHash != config_olcPasswordHash
+  - "current_config_olcPasswordHash != 'dn: cn=config'"
+
+- name: Modify olcPasswordCryptSaltFormat attribute for "cn=config"
+  command: "{{ ldapmodify_command }} -f /srv/slapd/config_olcPasswordCryptSaltFormat_modify.ldif"
+  when:
+  - current_config_olcPasswordCryptSaltFormat != config_olcPasswordCryptSaltFormat
+  - "current_config_olcPasswordCryptSaltFormat != 'dn: cn=config'"
+
+# olcRootPW for cn=config
+
+- name: Copy olcRootPW LDIF file
+  template:
+    src: "{{ role_path }}/templates/main_config_olcRootPW_delete.ldif.j2"
+    dest: /srv/slapd/config_olcRootPW_delete.ldif
+
+- name: Execute ldapsearch to get olcRootPW attribute value for "cn=config"
+  command: "{{ ldapsearch_command }} -b cn=config '(olcDatabase={1}mdb)' olcRootPW -LLL"
+  register: ldapsearch_config_olcRootPW
+  changed_when: False
+
+- name: Extract olcRootPW attribute value from previous ldapsearch
+  set_fact:
+    current_config_olcRootPW: "{{ ldapsearch_config_olcRootPW.stdout | regex_replace('\\n', '') | regex_replace('.*olcRootPW::? (.*)', '\\1') }}"
+
+- name: Delete olcRootPW attribute for "cn=config"
+  command: "{{ ldapmodify_command }} -f /srv/slapd/config_olcRootPW_delete.ldif"
+  when:
+  - "current_config_olcRootPW != 'dn: olcDatabase={1}mdb,cn=config'"
 
 # olcTLS... for cn=config
 
@@ -228,3 +425,44 @@
   when:
   - current_config_olcTLSCertificateKeyFile != config_olcTLSCertificateKeyFile
   - "current_config_olcTLSCertificateKeyFile != 'dn: cn=config'"
+
+# olcAccess for olcDatabase={0}config,cn=config
+
+- name: Copy file config_olcAccess.ldif
+  template:
+    src: "{{ role_path }}/templates/main_config_olcAccess_modify.ldif.j2"
+    dest: /srv/slapd/config_olcAccess_modify.ldif
+
+- name: Execute ldapsearch to get olcAccess attribute value for "olcDatabase={0}config,cn=config"
+  command: "{{ ldapsearch_command }} -b cn=config '(olcDatabase={0}config)' olcAccess -LLL"
+  register: ldapsearch_config_olcAccess
+  changed_when: False
+
+- name: Extract olcAccess attribute value from previous ldapsearch
+  set_fact:
+    current_config_olcAccess: "{{ ldapsearch_config_olcAccess.stdout | regex_replace('\\n', '') | regex_replace('.*olcAccess: \\{0\\}(.*)', '\\1') }}"
+
+- name: Modify olcAccess attribute for "olcDatabase={0}config,cn=config"
+  command: "{{ ldapmodify_command }} -f /srv/slapd/config_olcAccess_modify.ldif"
+  when: config_olcAccess != current_config_olcAccess
+
+#
+# Backup the databases
+#
+
+- name: Make a backup of "cn=config" database
+  command: slapcat -o ldif-wrap=no -b cn=config -l /srv/slapd/backup_config.ldif
+  changed_when: False
+
+- name: Make a backup of "{{ ldap_rootdn }}" database
+  command: slapcat -o ldif-wrap=no -b "{{ ldap_rootdn }}" -l /srv/slapd/backup_mdb.ldif
+  changed_when: False
+
+- name: Fetch the databases backups
+  fetch:
+    src: "{{ item }}"
+    dest: "{{ minidc_working_directory }}"
+  loop:
+  - /srv/slapd/backup_config.ldif
+  - /srv/slapd/backup_mdb.ldif
+  when: not push_config

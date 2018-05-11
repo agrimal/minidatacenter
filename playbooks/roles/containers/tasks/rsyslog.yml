@@ -6,6 +6,7 @@
     owner: root
     group: root
     mode: 0644
+  register: rsyslog_conf_task
 
 - name: Copy /etc/rsyslog.d/50-default.conf
   copy:
@@ -14,3 +15,12 @@
     owner: root
     group: root
     mode: 0644
+  register: rsyslog_default_conf_task
+
+- name: Restart rsyslog
+  systemd:
+    name: rsyslog
+    state: restarted
+  when:
+  - rsyslog_conf_task.changed or
+    rsyslog_default_conf_task.changed
