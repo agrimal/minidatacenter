@@ -64,6 +64,14 @@ Details
    Name of the certificate. Must be declared too in the "ca_certificates"
   section of the CA container.
 
+**ldap_url:** `string`
+
+   URL of LDAP server.
+
+**ldap_rootdn:** `string`
+
+   Name of the rootdn of your DIT.
+
 **ldap_organization:** `string`
 
    Name of the organization to use in the base DN of your LDAP directory.
