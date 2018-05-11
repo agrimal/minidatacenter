@@ -78,7 +78,7 @@ For example, 'foo.example.org' will create the directory with
 
    Specify slapd's listening IP addresses.
 
-push_config: `boolean`
+**push_config:** `boolean`
 
    If true, the config files will be copied from localhost to the container.
   This is usefull if you want to restore a backup. If the files don't exist on
