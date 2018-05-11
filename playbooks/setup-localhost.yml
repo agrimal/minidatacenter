@@ -1,5 +1,5 @@
 ---
-- name: Execute the tasks relative to localhost
+- name: Execute the tasks relative to the localhost
   hosts: localhost 
   connection: local
   roles:
