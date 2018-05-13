@@ -1,0 +1,10 @@
+# Servers
+ldap_servers: ldap://{{ ldap_url }}
+
+# Identity
+ldap_bind_dn: uid=cyrus,ou=applications,{{ ldap_rootdn }}
+ldap_password: cyrus
+ldap_auth_method: bind
+
+# Search
+ldap_search_base: ou=people,{{ ldap_rootdn }}

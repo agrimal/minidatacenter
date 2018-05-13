@@ -1,0 +1,45 @@
+---
+- name: Execute ldapsearch
+  command: "{{ ldapsearch_command }} -b {{ search_base }} ({{ filter }}) {{ attribute }} -LLL"
+  register: ldapsearch_ouput
+  changed_when: False
+
+- name: Extract attribute value from previous ldapsearch
+  set_fact:
+    current_attribute_value: "{{ ldapsearch_ouput.stdout_lines |  map('regex_search', '^' + attribute + '::? .*') | select('string') | list | map('regex_replace', '^' + attribute + '::? (?:{[0-9]+})?(.*)', '\\1') | list }}"
+
+- name: Set modify action to 'delete'
+  set_fact:
+    action: delete
+    wanted_attribute_value: []
+  when:
+  - wanted_attribute_value is not defined or
+    wanted_attribute_value is none
+
+- name: Set modify action to 'add'
+  set_fact:
+    action: add
+  when:
+  - wanted_attribute_value is defined
+  - wanted_attribute_value is not none
+  - current_attribute_value == []
+
+- name: Set modify action to 'replace'
+  set_fact:
+    action: replace
+  when:
+  - wanted_attribute_value is defined
+  - wanted_attribute_value is not none
+  - current_attribute_value != []
+
+- name: Copy LDIF file "{{ ldap_dir + '/' + dn | regex_replace('[^A-Za-z0-9-]', '_') + '_' + attribute + '_modify.ldif' }}"
+  template:
+    src: "{{ role_path }}/templates/ldap_attributes.ldif.j2"
+    dest: "{{ ldap_dir + '/' + dn | regex_replace('[^A-Za-z0-9-]', '_') + '_' + attribute + '_modify.ldif' }}"
+  when:
+  - wanted_attribute_value != current_attribute_value
+
+- name: Execute ldapmodify to modify the attribute value
+  command: "{{ ldapmodify_command }} -f {{ ldap_dir + '/' + dn | regex_replace('[^A-Za-z0-9-]', '_') + '_' + attribute + '_modify.ldif' }}"
+  when:
+  - wanted_attribute_value != current_attribute_value

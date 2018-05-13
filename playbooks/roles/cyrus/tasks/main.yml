@@ -1,0 +1,37 @@
+---
+- name: Install packages
+  apt:
+    name: "{{ item }}"
+    update_cache: yes
+    cache_valid_time: 3600
+    state: present
+  loop:
+  - cyrus-imapd
+  - cyrus-admin
+  - cyrus-doc
+  - cyrus-clients
+  - cyrus-caldav
+  - imapcopy
+  - sasl2-bin
+
+- name: Generate password for "cyrus" LDAP account
+  set_fact:
+    cyrus_password: "{{ lookup('password', minidc_working_directory + '/' + inventory_hostname + '/' + 'cyrus_password length=40 chars=ascii_letters,digits,hexdigits') }}"
+
+- name:
+
+- name: Copy "/etc/cyrus.conf"
+  copy:
+    src: "{{ role_path }}/files/main_etc_cyrus.conf"
+    dest: /etc/cyrus.conf
+    mode: 0640
+
+- name: Copy "/etc/default/saslauthd"
+  copy:
+    src: "{{ role_path }}/files/main_etc_default_saslauthd"
+    dest: /etc/default/saslauthd
+    mode: 0640
+
+#- name: Copy "/etc/imapd.conf"
+
+#- name: Copy "/etc/saslauthd.conf"

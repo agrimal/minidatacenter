@@ -1,4 +1,0 @@
-dn: olcDatabase={0}config,cn=config
-changeType: modify
-replace: olcAccess
-olcAccess: to * by dn.exact=cn=admin,{{ ldap_rootdn }} manage by * break

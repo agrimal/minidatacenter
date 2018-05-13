@@ -1,0 +1,30 @@
+---
+- name: Execute ldapsearch
+  command: "{{ ldapsearch_command }} -b '{{ ldap_rootdn }}' '({{ rdn_type }}={{ rdn_value }})' dn -LLL"
+  register: ldapsearch_ouput
+  changed_when: False
+
+- name: Define the state
+  set_fact:
+    state: absent
+  when:
+  - state is not defined or
+    state is none or
+    state not in ['present', 'absent']
+
+- name: Define the changetype and the path of the LDIF file
+  set_fact:
+    changetype: "{{ (state == 'present') | ternary('add', 'delete') }}"
+    ldif_file: "{{ ldap_dir + '/' + rdn_type + '_' + rdn_value + '_' + ldap_rootdn | regex_replace('[^A-Za-z0-9-]', '_') + '.ldif' }}"
+
+- name: Copy LDIF file "{{ ldif_file }}"
+  template:
+    src: "{{ role_path }}/templates/ldap_entry.ldif.j2"
+    dest: "{{ ldif_file }}"
+  when:
+  - ldapsearch_ouput.stdout == '' and state == 'present' or ldapsearch_ouput.stdout != '' and state == 'absent'
+
+- name: Execute ldapmodify to add / remove the entry
+  command: "{{ ldapmodify_command }} -f {{ ldif_file }}"
+  when:
+  - ldapsearch_ouput.stdout == '' and state == 'present' or ldapsearch_ouput.stdout != '' and state == 'absent'

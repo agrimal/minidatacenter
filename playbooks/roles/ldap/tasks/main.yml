@@ -100,19 +100,19 @@
 - name: Copy CA certificate
   copy:
     src: "{{ minidc_working_directory }}/{{ ca_pair }}/{{ hostvars[ca_pair]['ca_easy_rsa_install_dir'] }}/keys/ca.crt"
-    dest: /etc/ssl/certs/ca.crt
+    dest: "{{ ca_cert_dir }}/{{ ca_cert_file }}"
   register: copy_ca_crt_task
 
 - name: Copy LDAP certificate
   copy:
     src: "{{ minidc_working_directory }}/{{ ca_pair }}/{{ hostvars[ca_pair]['ca_easy_rsa_install_dir'] }}/keys/{{ ldap_certificate }}.crt"
-    dest: "/etc/ssl/certs/{{ ldap_certificate }}.crt"
+    dest: "{{ ca_cert_dir }}/{{ ldap_certificate }}.crt"
   register: copy_ldap_crt_task
 
 - name: Copy LDAP key
   copy:
     src: "{{ minidc_working_directory }}/{{ ca_pair }}/{{ hostvars[ca_pair]['ca_easy_rsa_install_dir'] }}/keys/{{ ldap_certificate }}.key"
-    dest: "/etc/ssl/private/{{ ldap_certificate }}.key"
+    dest: "{{ ca_private_dir }}/{{ ldap_certificate }}.key"
     mode: 0640
     group: ssl-cert
   register: copy_ldap_key_task
@@ -131,7 +131,7 @@
 
 - name: Copy "/etc/rsyslog.d/01-slapd.conf"
   copy:
-    src: "{{ role_path }}/files/main_01-slapd.conf"
+    src: "{{ role_path }}/files/main_rsyslog_01-slapd.conf"
     dest: /etc/rsyslog.d/01-slapd.conf
     owner: root
     group: root
@@ -146,9 +146,9 @@
     group: syslog
     mode: 0755
 
-- name: Verify that "/srv/slapd" directory exists
+- name: Verify that "{{ ldap_dir }}" directory exists
   file:
-    path: /srv/slapd
+    path: "{{ ldap_dir }}"
     state: directory
     owner: openldap
 
@@ -161,7 +161,7 @@
 
 - name: Configure logrotate for slapd
   copy:
-    src: "{{ role_path }}/files/main_slapd"
+    src: "{{ role_path }}/files/main_logrotate_slapd"
     dest: /etc/logrotate.d/slapd
     owner: root
     group: root
@@ -232,7 +232,7 @@
 - name: Delete files in "/var/lib/ldap"
   file:
     path: /var/lib/ldap
-    state: "{{ item }}"
+    state: '{{ item }}'
     owner: openldap
     group: openldap
   loop:
@@ -240,10 +240,10 @@
   - directory
   when: push_config
 
-- name: Restore "{{ ldap_rootdn }}" database
+- name: Restore '{{ ldap_rootdn }}' database
   become: yes
   become_user: openldap
-  command: slapadd -F /etc/ldap/slapd.d -b "{{ ldap_rootdn }}" -l /tmp/slapd/backup_mdb.ldif
+  command: slapadd -F /etc/ldap/slapd.d -b '{{ ldap_rootdn }}' -l /tmp/slapd/backup_mdb.ldif
   when: push_config
 
 - name: Start slapd service
@@ -256,134 +256,69 @@
 # Configure LDAP databases
 #
 
-#- name: Change access to "cn=config"
-#  ldap_attr:
-#    dn: olcDatabase={0}config,cn=config
-#    name: olcAccess
-#    values: to * by dn.exact=cn=admin,{{ ldap_rootdn }} manage by * break
-#    state: exact
-#    validate_certs: no
-
-#- name: Change loglevel to "stats"
-#  ldap_attr:
-#    dn: cn=config
-#    name: olcLogLevel
-#    values: stats
-#    state: exact
-#    validate_certs: no
-
-- set_fact:
+- name: Define ldapsearch and ldapmodify commands
+  set_fact:
     ldapsearch_command: ldapsearch -o ldif-wrap=no -Q -Y external -H ldapi:///
     ldapmodify_command: ldapmodify -Y external -H ldapi:///
-    config_olcLogLevel: stats
-    config_olcAccess: to * by dn.exact=cn=admin,{{ ldap_rootdn }} manage by * break
-    config_olcTLSCACertificateFile: /etc/ssl/certs/ca.crt
-    config_olcTLSCertificateFile: /etc/ssl/certs/{{ ldap_certificate }}.crt
-    config_olcTLSCertificateKeyFile: /etc/ssl/private/{{ ldap_certificate }}.key
-    config_olcPasswordHash: "{CRYPT}"
-    config_olcPasswordCryptSaltFormat: $6$%.16s
 
-# olcLogLevel for cn=config
-
-- name: Copy file config_olcLogLevel_modify.ldif
-  template:
-    src: "{{ role_path }}/templates/main_config_olcLogLevel_modify.ldif.j2"
-    dest: /srv/slapd/config_olcLogLevel_modify.ldif
-
-- name: Execute ldapsearch to get olcLogLevel attribute value for cn=config
-  command: "{{ ldapsearch_command }} -b cn=config '(cn=config)' olcLogLevel -LLL"
-  register: ldapsearch_config_olcLogLevel
-  changed_when: False
-
-- name: Extract olcLogLevel attribute value from previous ldapsearch
+- name: Prepare variables to modify 'olcLogLevel' attribute for 'cn=config'
   set_fact:
-    current_config_olcLogLevel: "{{ ldapsearch_config_olcLogLevel.stdout_lines | select('match', 'olcLogLevel:') | list | join('') | regex_replace('olcLogLevel: ', '') }}"
+    dn: cn=config
+    search_base: cn=config
+    filter: cn=config
+    attribute: olcLogLevel
+    wanted_attribute_value:
+    - stats acl
 
-- name: Modify olcLogLevel attribute for "cn=config"
-  command: "{{ ldapmodify_command }} -f /srv/slapd/config_olcLogLevel_modify.ldif"
-  when: config_olcLogLevel != current_config_olcLogLevel
+- include_tasks: '{{ role_path }}/tasks/ldap_attributes.yml'
 
-# olcPassword... for cn=config
-
-- name: Copy olcPassword LDIF files
-  template:
-    src: "{{ role_path }}/templates/main_config_{{ item }}.ldif.j2"
-    dest: /srv/slapd/config_{{ item }}.ldif
-  loop:
-  - olcPassword_attributes_add
-  - olcPasswordHash_modify
-  - olcPasswordCryptSaltFormat_modify
-
-- name: Execute ldapsearch to get olcPasswordHash attribute value for "cn=config"
-  command: "{{ ldapsearch_command }} -b cn=config '(cn=config)' olcPasswordHash -LLL"
-  register: ldapsearch_config_olcPasswordHash
-  changed_when: False
-
-- name: Execute ldapsearch to get olcPasswordCryptSaltFormat attribute value for "cn=config"
-  command: "{{ ldapsearch_command }} -b cn=config '(cn=config)' olcPasswordCryptSaltFormat -LLL"
-  register: ldapsearch_config_olcPasswordCryptSaltFormat
-  changed_when: False
-
-- name: Extract olcPassword... attributes values from previous ldapsearches
+- name: Prepare variables to modify 'olcPasswordHash' attribute for 'cn=config'
   set_fact:
-    current_config_olcPasswordHash: "{{ ldapsearch_config_olcPasswordHash.stdout | regex_replace('\\n', '') | regex_replace('.*olcPasswordHash::? (.*)', '\\1') }}"
-    current_config_olcPasswordCryptSaltFormat: "{{ ldapsearch_config_olcPasswordCryptSaltFormat.stdout | regex_replace('\\n', '') | regex_replace('.*olcPasswordCryptSaltFormat::? (.*)', '\\1') }}"
+    dn: cn=config
+    search_base: cn=config
+    filter: cn=config
+    attribute: olcPasswordHash
+    wanted_attribute_value:
+    - '{CRYPT}'
 
-- name: Add olcPassword... attributes for "cn=config"
-  command: "{{ ldapmodify_command }} -f /srv/slapd/config_olcPassword_attributes_add.ldif"
-  when:
-  - "current_config_olcPasswordHash == 'dn: cn=config'"
-  - "current_config_olcPasswordCryptSaltFormat == 'dn: cn=config'"
+- include_tasks: '{{ role_path }}/tasks/ldap_attributes.yml'
 
-- name: Modify olcPasswordHash attribute for "cn=config"
-  command: "{{ ldapmodify_command }} -f /srv/slapd/config_olcPasswordHash_modify.ldif"
-  when:
-  - current_config_olcPasswordHash != config_olcPasswordHash
-  - "current_config_olcPasswordHash != 'dn: cn=config'"
-
-- name: Modify olcPasswordCryptSaltFormat attribute for "cn=config"
-  command: "{{ ldapmodify_command }} -f /srv/slapd/config_olcPasswordCryptSaltFormat_modify.ldif"
-  when:
-  - current_config_olcPasswordCryptSaltFormat != config_olcPasswordCryptSaltFormat
-  - "current_config_olcPasswordCryptSaltFormat != 'dn: cn=config'"
-
-# olcRootPW for cn=config
-
-- name: Copy olcRootPW LDIF file
-  template:
-    src: "{{ role_path }}/templates/main_config_olcRootPW_delete.ldif.j2"
-    dest: /srv/slapd/config_olcRootPW_delete.ldif
-
-- name: Execute ldapsearch to get olcRootPW attribute value for "cn=config"
-  command: "{{ ldapsearch_command }} -b cn=config '(olcDatabase={1}mdb)' olcRootPW -LLL"
-  register: ldapsearch_config_olcRootPW
-  changed_when: False
-
-- name: Extract olcRootPW attribute value from previous ldapsearch
+- name: Prepare variables to modify 'olcPasswordCryptSaltFormat' attribute for 'cn=config'
   set_fact:
-    current_config_olcRootPW: "{{ ldapsearch_config_olcRootPW.stdout | regex_replace('\\n', '') | regex_replace('.*olcRootPW::? (.*)', '\\1') }}"
+    dn: cn=config
+    search_base: cn=config
+    filter: cn=config
+    attribute: olcPasswordCryptSaltFormat
+    wanted_attribute_value:
+    - $6$%.16s
 
-- name: Delete olcRootPW attribute for "cn=config"
-  command: "{{ ldapmodify_command }} -f /srv/slapd/config_olcRootPW_delete.ldif"
-  when:
-  - "current_config_olcRootPW != 'dn: olcDatabase={1}mdb,cn=config'"
+- include_tasks: '{{ role_path }}/tasks/ldap_attributes.yml'
 
-# olcTLS... for cn=config
+- name: Prepare variables to delete 'olcRootPW' attribute for 'olcDatabase={1}mdb,cn=config'
+  set_fact:
+    dn: olcDatabase={1}mdb,cn=config
+    search_base: cn=config
+    filter: olcDatabase={1}mdb
+    attribute: olcRootPW
+    wanted_attribute_value:
 
-- name: Copy olcTLS LDIF files
-  template:
-    src: "{{ role_path }}/templates/main_config_{{ item }}.ldif.j2"
-    dest: /srv/slapd/config_{{ item }}.ldif
-  loop:
-  - olcTLS_attributes_add
-  - olcTLSCACertificateFile_modify
-  - olcTLSCertificateFile_modify
-  - olcTLSCertificateKeyFile_modify
+- include_tasks: '{{ role_path }}/tasks/ldap_attributes.yml'
 
-- name: Execute ldapsearch to get olcTLSCACertificateFile attribute value for "cn=config"
-  command: "{{ ldapsearch_command }} -b cn=config '(cn=config)' olcTLSCACertificateFile -LLL"
-  register: ldapsearch_config_olcTLSCACertificateFile
-  changed_when: False
+- name: Prepare variables to add 'olcTLSCACertificateFile' attribute for 'cn=config'
+  set_fact:
+    dn: cn=config
+    search_base: cn=config
+    filter: cn=config
+    attribute: olcTLSCACertificateFile
+    wanted_attribute_value:
+    - '{{ ca_cert_dir }}/{{ ca_cert_file }}'
+
+- include_tasks: '{{ role_path }}/tasks/ldap_attributes.yml'
+
+- name: Define 'olcTLSCertificateFile' and 'olcTLSCertificateKeyFile' values for 'cn=config'
+  set_fact:
+    config_olcTLSCertificateFile: "{{ ca_cert_dir }}/{{ ldap_certificate }}.crt"
+    config_olcTLSCertificateKeyFile: "{{ ca_private_dir }}/{{ ldap_certificate }}.key"
 
 - name: Execute ldapsearch to get olcTLSCertificateFile attribute value for "cn=config"
   command: "{{ ldapsearch_command }} -b cn=config '(cn=config)' olcTLSCertificateFile -LLL"
@@ -395,56 +330,161 @@
   register: ldapsearch_config_olcTLSCertificateKeyFile
   changed_when: False
 
-- name: Extract olcTLS... attributes values from previous ldapsearches
+- name: Extract olcTLSCertificateFile and olcTLSCertificateKeyFile attributes values from previous ldapsearches
   set_fact:
-    current_config_olcTLSCACertificateFile: "{{ ldapsearch_config_olcTLSCACertificateFile.stdout | regex_replace('\\n', '') | regex_replace('.*olcTLSCACertificateFile::? (.*)', '\\1') }}"
     current_config_olcTLSCertificateFile: "{{ ldapsearch_config_olcTLSCertificateFile.stdout | regex_replace('\\n', '') | regex_replace('.*olcTLSCertificateFile::? (.*)', '\\1') }}"
     current_config_olcTLSCertificateKeyFile: "{{ ldapsearch_config_olcTLSCertificateKeyFile.stdout | regex_replace('\\n', '') | regex_replace('.*olcTLSCertificateKeyFile::? (.*)', '\\1') }}"
 
-- name: Add olcTLS... attributes for "cn=config"
-  command: "{{ ldapmodify_command }} -f /srv/slapd/config_olcTLS_attributes_add.ldif"
+- name: Copy "/srv/slapd/config_{{ item }}.ldif" LDIF files
+  template:
+    src: "{{ role_path }}/templates/main_config_{{ item }}.ldif.j2"
+    dest: /srv/slapd/config_{{ item }}.ldif
+  loop:
+  - olcTLS_attributes_add
   when:
-  - "current_config_olcTLSCACertificateFile == 'dn: cn=config'"
   - "current_config_olcTLSCertificateFile == 'dn: cn=config'"
   - "current_config_olcTLSCertificateKeyFile == 'dn: cn=config'"
 
-- name: Modify olcTLSCACertificateFile attribute for "cn=config"
-  command: "{{ ldapmodify_command }} -f /srv/slapd/config_olcTLSCACertificateFile_modify.ldif"
+- name: Add olcTLSCertificateFile and olcTLSCertificateKeyFile attributes to "cn=config"
+  command: "{{ ldapmodify_command }} -f /srv/slapd/config_olcTLS_attributes_add.ldif"
   when:
-  - current_config_olcTLSCACertificateFile != config_olcTLSCACertificateFile
-  - "current_config_olcTLSCACertificateFile != 'dn: cn=config'"
+  - "current_config_olcTLSCertificateFile == 'dn: cn=config'"
+  - "current_config_olcTLSCertificateKeyFile == 'dn: cn=config'"
 
-- name: Modify olcTLSCertificateFile attribute for "cn=config"
-  command: "{{ ldapmodify_command }} -f /srv/slapd/config_olcTLSCertificateFile_modify.ldif"
-  when:
-  - current_config_olcTLSCertificateFile != config_olcTLSCertificateFile
-  - "current_config_olcTLSCertificateFile != 'dn: cn=config'"
-
-- name: Modify olcTLSCertificateKeyFile attribute for "cn=config"
-  command: "{{ ldapmodify_command }} -f /srv/slapd/config_olcTLSCertificateKeyFile_modify.ldif"
-  when:
-  - current_config_olcTLSCertificateKeyFile != config_olcTLSCertificateKeyFile
-  - "current_config_olcTLSCertificateKeyFile != 'dn: cn=config'"
-
-# olcAccess for olcDatabase={0}config,cn=config
-
-- name: Copy file config_olcAccess.ldif
-  template:
-    src: "{{ role_path }}/templates/main_config_olcAccess_modify.ldif.j2"
-    dest: /srv/slapd/config_olcAccess_modify.ldif
-
-- name: Execute ldapsearch to get olcAccess attribute value for "olcDatabase={0}config,cn=config"
-  command: "{{ ldapsearch_command }} -b cn=config '(olcDatabase={0}config)' olcAccess -LLL"
-  register: ldapsearch_config_olcAccess
-  changed_when: False
-
-- name: Extract olcAccess attribute value from previous ldapsearch
+- name: Prepare variables to modify 'olcTLSCertificateFile' attribute for 'cn=config'
   set_fact:
-    current_config_olcAccess: "{{ ldapsearch_config_olcAccess.stdout | regex_replace('\\n', '') | regex_replace('.*olcAccess: \\{0\\}(.*)', '\\1') }}"
+    dn: cn=config
+    search_base: cn=config
+    filter: cn=config
+    attribute: olcTLSCertificateFile
+    wanted_attribute_value:
+    - "{{ config_olcTLSCertificateFile }}"
 
-- name: Modify olcAccess attribute for "olcDatabase={0}config,cn=config"
-  command: "{{ ldapmodify_command }} -f /srv/slapd/config_olcAccess_modify.ldif"
-  when: config_olcAccess != current_config_olcAccess
+- include_tasks: "{{ role_path }}/tasks/ldap_attributes.yml"
+  when:
+  - "current_config_olcTLSCertificateFile != 'dn: cn=config'"
+  - current_config_olcTLSCertificateFile != config_olcTLSCertificateFile
+
+- name: Prepare variables to modify 'olcTLSCertificateKeyFile' attribute for 'cn=config'
+  set_fact:
+    dn: cn=config
+    search_base: cn=config
+    filter: cn=config
+    attribute: olcTLSCertificateKeyFile
+    wanted_attribute_value:
+    - "{{ config_olcTLSCertificateKeyFile }}"
+
+- include_tasks: "{{ role_path }}/tasks/ldap_attributes.yml"
+  when:
+  - "current_config_olcTLSCertificateKeyFile != 'dn: cn=config'"
+  - current_config_olcTLSCertificateKeyFile != config_olcTLSCertificateKeyFile
+
+- name: Prepare variables to modify 'olcAccess' attribute for 'olcDatabase={0}config,cn=config'
+  set_fact:
+    dn: olcDatabase={0}config,cn=config
+    search_base: cn=config
+    filter: olcDatabase={0}config
+    attribute: olcAccess
+    wanted_attribute_value:
+    - to * by dn.exact=gidNumber=0+uidNumber=0,cn=peercred,cn=external,cn=auth manage by dn.exact=cn=admin,dc=tech-tips,dc=fr ssf=256 manage by * none
+
+- include_tasks: "{{ role_path }}/tasks/ldap_attributes.yml"
+
+- name: Prepare variables to modify 'olcAccess' attribute for 'olcDatabase={-1}frontend,cn=config'
+  set_fact:
+    dn: olcDatabase={-1}frontend,cn=config
+    search_base: cn=config
+    filter: olcDatabase={-1}frontend
+    attribute: olcAccess
+    wanted_attribute_value:
+    - to * by dn.exact=gidNumber=0+uidNumber=0,cn=peercred,cn=external,cn=auth manage by dn.exact=cn=admin,{{ ldap_rootdn }} ssf=256 manage by * break
+    - to dn.exact="" by * ssf=256 read
+    - to dn.base="cn=Subschema" by * ssf=256 read
+
+- include_tasks: "{{ role_path }}/tasks/ldap_attributes.yml"
+
+- name: Prepare variables to modify 'olcAccess' attribute for 'olcDatabase={1}mdb,cn=config'
+  set_fact:
+    dn: olcDatabase={1}mdb,cn=config
+    search_base: cn=config
+    filter: olcDatabase={1}mdb
+    attribute: olcAccess
+    wanted_attribute_value:
+    - to attrs=userPassword,shadowLastChange by self ssf=256 write by dn.exact=gidNumber=0+uidNumber=0,cn=peercred,cn=external,cn=auth write by dn.exact=cn=admin,{{ ldap_rootdn }} ssf=256 write by anonymous ssf=256 auth by * none
+    - to * by dn.exact=gidNumber=0+uidNumber=0,cn=peercred,cn=external,cn=auth manage by dn.exact=cn=admin,{{ ldap_rootdn }} ssf=256 manage by users ssf=256 read by anonymous ssf=256 auth by * none
+
+- include_tasks: "{{ role_path }}/tasks/ldap_attributes.yml"
+
+- name: Prepare variables to modify 'olcTLSVerifyClient' attribute for 'cn=config'
+  set_fact:
+    dn: cn=config
+    search_base: cn=config
+    filter: cn=config
+    attribute: olcTLSVerifyClient
+    wanted_attribute_value:
+    - never
+
+- include_tasks: "{{ role_path }}/tasks/ldap_attributes.yml"
+
+- name: Prepare variables to add 'ou' to '{{ ldap_rootdn }}'
+  set_fact:
+    rdn_type: ou
+    objectClasses:
+    - organizationalUnit
+    state: present
+
+- include_tasks: "{{ role_path }}/tasks/ldap_entry.yml"
+  loop: "{{ [ldap_ou_users] + [ldap_ou_groups] + [ldap_ou_applications] + ldap_ou_additional_list }}"
+  loop_control:
+    loop_var: rdn_value
+
+- name: Prepare variables to add applications accounts to 'ou={{ ldap_ou_applications }},{{ ldap_rootdn }}'
+  set_fact:
+    old_ldap_rootdn: "{{ ldap_rootdn }}"
+    rdn_type: uid
+    objectClasses:
+    - account
+    - simpleSecurityObject
+    attributes:
+    - 'userPassword: password'
+    state: present
+
+- include_tasks: "{{ role_path }}/tasks/ldap_entry.yml"
+  vars:
+    ldap_rootdn: "ou={{ ldap_ou_applications }},{{ old_ldap_rootdn }}"
+    attributes:
+    - "{{ 'userPassword: {CRYPT}' + lookup('password', minidc_working_directory + '/' + inventory_hostname + '/' + rdn_value + '_password length=50 chars=ascii_letters,digits,hexdigits') | password_hash('sha512') }}"
+  loop: "{{ ldap_applications_accounts }}"
+  loop_control:
+    loop_var: rdn_value
+  register: create_applications_accounts_task
+
+- name: Delete applications accounts password files
+  local_action:
+    module: file
+    path: "{{ minidc_working_directory + '/' + inventory_hostname + '/' + item + '_password' }}"
+    state: absent
+  loop: "{{ ldap_applications_accounts }}"
+  when: ansible_renew_all
+
+- name: Prepare variables to modify 'userPassword' attribute for applications accounts
+  set_fact:
+    search_base: "{{ ldap_rootdn }}"
+    attribute: userPassword
+  when:
+  - ansible_renew_all or
+    create_applications_accounts_task.changed
+
+- include_tasks: "{{ role_path }}/tasks/ldap_attributes.yml"
+  vars:
+    dn: "uid={{ item }},ou={{ ldap_ou_applications }},{{ ldap_rootdn }}"
+    filter: "uid={{ item }}"
+    wanted_attribute_value:
+    - "{{ '{CRYPT}' + lookup('password', minidc_working_directory + '/' + inventory_hostname + '/' + item + '_password length=50 chars=ascii_letters,digits,hexdigits') | password_hash('sha512') }}"
+  loop: "{{ ldap_applications_accounts }}"
+  when:
+  - ansible_renew_all or
+    create_applications_accounts_task.changed
 
 #
 # Backup the databases

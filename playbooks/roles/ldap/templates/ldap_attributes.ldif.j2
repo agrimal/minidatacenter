@@ -1,0 +1,8 @@
+dn: {{ dn }}
+changeType: modify
+{{ action }}: {{ attribute }}
+{% if wanted_attribute_value is defined and wanted_attribute_value is not none %}
+{% for value_line in wanted_attribute_value %}
+{{ attribute }}: {{ value_line }}
+{% endfor %}
+{% endif %}

@@ -1,0 +1,13 @@
+dn: {{ rdn_type }}={{ rdn_value }},{{ ldap_rootdn }}
+changetype: {{ changetype }}
+{% if changetype == 'add' %}
+{% for objectClass in objectClasses %}
+objectCLass: {{ objectClass }}
+{% endfor %}
+{{ rdn_type }}: {{ rdn_value }}
+{% if attributes is defined and attributes is not none %}
+{% for attr in attributes %}
+{{ attr }}
+{% endfor %}
+{% endif %}
+{% endif %}
