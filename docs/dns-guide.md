@@ -52,107 +52,108 @@ all:
                             ansible_host: 10.0.0.101
                             dns_master_zones:
                                 forward:
-                                - name: 'my-domain.com'
-                                  ns_a_record: 'dns.my-domain.com'
-                                  ns_ip: '192.168.0.101'
-                                  ns_contact: 'admin'
+                                - name: my-domain.com
+                                  ns_a_record: dns.my-domain.com
+                                  ns_ip: 192.168.0.101
+                                  ns_contact: admin
                                   a_records:
-                                  - ['ca-container'       , '192.168.0.100']
-                                  - ['dns-container'      , '192.168.0.101']
-                                  - ['dhcp-container'     , '192.168.0.102']
-                                  - ['rvprx-container'    , '192.168.0.104']
-                                  - ['vpn-container'      , '192.168.0.105']
-                                  - ['plex-container'     , '192.168.0.106']
-                                  - ['ldap-container'     , '192.168.0.107']
-                                  - ['lam-container'      , '192.168.0.108']
-                                  - ['mariadb-container'  , '192.168.0.109']
-                                  - ['cyrus-container'    , '192.168.0.110']
-                                  - ['smtp-container'     , '192.168.0.111']
-                                  - ['smb-container'      , '192.168.0.112']
-                                  - ['nextcloud-container', '192.168.0.113']
-                                  txt_records:
-                                  - ['dns-container',  '"Example TXT record"']
+                                  - [ca-container       , 192.168.0.100]
+                                  - [dns-container      , 192.168.0.101]
+                                  - [dhcp-container     , 192.168.0.102]
+                                  - [rvprx-container    , 192.168.0.103]
+                                  - [vpn-container      , 192.168.0.104]
+                                  - [ldap-container     , 192.168.0.105]
+                                  - [lam-container      , 192.168.0.106]
+                                  - [cyrus-container    , 192.168.0.107]
+                                  - [plex-container     , 192.168.0.108]
+                                  - [mariadb-container  , 192.168.0.109]
+                                  - [smtp-container     , 192.168.0.110]
+                                  - [smb-container      , 192.168.0.111]
+                                  - [nextcloud-container, 192.168.0.112]
+                                  txt_records: []
                                   cname_records:
-                                  - ['vpn',  'vpn-container']
-                                  - ['plex', 'plex-container']
-                                  - ['lam', 'lam-container']
-                                - name: 'my-domain.home'
-                                  ns_a_record: 'dns.my-domain.home'
-                                  ns_ip: '192.168.0.101'
-                                  ns_contact: 'admin'
+                                  - [vpn,  vpn-container]
+                                  - [lam, lam-container]
+                                  - [plex, plex-container]
+                                - name: my-domain.home
+                                  ns_a_record: dns.my-domain.home
+                                  ns_ip: 192.168.0.101
+                                  ns_contact: admin
                                   a_records: []
                                   txt_records: []
                                   cname_records: []
-                                - name: 'my-domain.private'
-                                  ns_a_record: 'dns.my-domain.private'
-                                  ns_ip: '10.0.0.101'
-                                  ns_contact: 'admin'
+                                - name: my-domain.private
+                                  ns_a_record: dns.my-domain.private
+                                  ns_ip: 10.0.0.101
+                                  ns_contact: admin
                                   a_records:
-                                  - ['ca-container'       , '10.0.0.100']
-                                  - ['dns-container'      , '10.0.0.101']
-                                  - ['dhcp-container'     , '10.0.0.102']
-                                  - ['rvprx-container'    , '10.0.0.104']
-                                  - ['vpn-container'      , '10.0.0.105']
-                                  - ['plex-container'     , '10.0.0.106']
-                                  - ['ldap-container'     , '10.0.0.107']
-                                  - ['lam-container'      , '10.0.0.108']
-                                  - ['mariadb-container'  , '10.0.0.109']
-                                  - ['cyrus-container'    , '10.0.0.110']
-                                  - ['smtp-container'     , '10.0.0.111']
-                                  - ['smb-container'      , '10.0.0.112']
-                                  - ['nextcloud-container', '10.0.0.113']
+                                  - [ca-container       , 10.0.0.100]
+                                  - [dns-container      , 10.0.0.101]
+                                  - [dhcp-container     , 10.0.0.102]
+                                  - [rvprx-container    , 10.0.0.103]
+                                  - [vpn-container      , 10.0.0.104]
+                                  - [ldap-container     , 10.0.0.105]
+                                  - [lam-container      , 10.0.0.106]
+                                  - [cyrus-container    , 10.0.0.107]
+                                  - [plex-container     , 10.0.0.108]
+                                  - [mariadb-container  , 10.0.0.109]
+                                  - [smtp-container     , 10.0.0.110]
+                                  - [smb-container      , 10.0.0.111]
+                                  - [nextcloud-container, 10.0.0.112]
                                   txt_records: []
                                   cname_records:
-                                  - ['ldap', 'ldap-container']
+                                  - [ldap, ldap-container]
                                 reverse:
-                                - subnet: '192.168.1.0/24'
-                                  ns_url: 'dns.tech-tips.fr'
-                                  ns_contact: 'admin'
+                                - subnet: 192.168.1.0/24
+                                  ns_url: dns.my-domain.com
+                                  ns_contact: admin
                                   ptr_records:
-                                  - ['ubudns01.tech-tips.fr'      , '192.168.1.201']
-                                  - ['ubudhcp01.tech-tips.fr'     , '192.168.1.202']
-                                  - ['ubuca01.tech-tips.fr'       , '192.168.1.203']
-                                  - ['uburvprx01.tech-tips.fr'    , '192.168.1.204']
-                                  - ['ubuvpn01.tech-tips.fr'      , '192.168.1.205']
-                                  - ['ubuplex01.tech-tips.fr'     , '192.168.1.206']
-                                  - ['ubuldap01.tech-tips.fr'     , '192.168.1.207']
-                                  - ['ubulam01.tech-tips.fr'      , '192.168.1.208']
-                                  - ['ubumariadb01.tech-tips.fr'  , '192.168.1.209']
-                                  - ['ubucyrus01.tech-tips.fr'    , '192.168.1.210']
-                                  - ['ubusmtp01.tech-tips.fr'     , '192.168.1.211']
-                                  - ['ubusmb01.tech-tips.fr'      , '192.168.1.212']
-                                  - ['ubunextcloud01.tech-tips.fr', '192.168.1.213']
-                                - subnet: '10.10.0.0/16'
-                                  ns_url: 'dns.tech-tips.private'
-                                  ns_contact: 'admin'
+                                  - [ca-container.my-domain.com       , 192.168.0.100]
+                                  - [dns-container.my-domain.com      , 192.168.0.101]
+                                  - [dhcp-container.my-domain.com     , 192.168.0.102]
+                                  - [rvprx-container.my-domain.com    , 192.168.0.103]
+                                  - [vpn-container.my-domain.com      , 192.168.0.104]
+                                  - [ldap-container.my-domain.com     , 192.168.0.105]
+                                  - [lam-container.my-domain.com      , 192.168.0.106]
+                                  - [cyrus-container.my-domain.com    , 192.168.0.107]
+                                  - [plex-container.my-domain.com     , 192.168.0.108]
+                                  - [mariadb-container.my-domain.com  , 192.168.0.109]
+                                  - [smtp-container.my-domain.com     , 192.168.0.110]
+                                  - [smb-container.my-domain.com      , 192.168.0.111]
+                                  - [nextcloud-container.my-domain.com, 192.168.0.112]
+                                - subnet: 10.0.0.0/24
+                                  ns_url: dns.my-domain.private
+                                  ns_contact: admin
                                   ptr_records:
-                                  - ['ubudns01.tech-tips.private'      , '10.10.0.201']
-                                  - ['ubudhcp01.tech-tips.private'     , '10.10.0.202']
-                                  - ['ubuca01.tech-tips.private'       , '10.10.0.203']
-                                  - ['uburvprx01.tech-tips.private'    , '10.10.0.204']
-                                  - ['ubuvpn01.tech-tips.private'      , '10.10.0.205']
-                                  - ['ubuldap01.tech-tips.private'     , '10.10.0.207']
-                                  - ['ubulam01.tech-tips.private'      , '10.10.0.208']
-                                  - ['ubumariadb01.tech-tips.private'  , '10.10.0.209']
-                                  - ['ubucyrus01.tech-tips.private'    , '10.10.0.210']
-                                  - ['ubusmtp01.tech-tips.private'     , '10.10.0.211']
-                                  - ['ubusmb01.tech-tips.private'      , '10.10.0.212']
-                                  - ['ubunextcloud01.tech-tips.private', '10.10.0.213']
+                                  - [ca-container.my-domain.private       , 10.0.0.100]
+                                  - [dns-container.my-domain.private      , 10.0.0.101]
+                                  - [dhcp-container.my-domain.private     , 10.0.0.102]
+                                  - [rvprx-container.my-domain.private    , 10.0.0.103]
+                                  - [vpn-container.my-domain.private      , 10.0.0.104]
+                                  - [ldap-container.my-domain.private     , 10.0.0.105]
+                                  - [lam-container.my-domain.private      , 10.0.0.106]
+                                  - [cyrus-container.my-domain.private    , 10.0.0.107]
+                                  - [plex-container.my-domain.private     , 10.0.0.108]
+                                  - [mariadb-container.my-domain.private  , 10.0.0.109]
+                                  - [smtp-container.my-domain.private     , 10.0.0.110]
+                                  - [smb-container.my-domain.private      , 10.0.0.111]
+                                  - [nextcloud-container.my-domain.private, 10.0.0.112]
                             dns_clients:
-                            - { 'Clients' : '192.168.1.0/24' }
+                            - { Clients : 192.168.0.0/24 }
                             dns_admins:
-                            - { 'DHCP container' : '10.10.0.202/32' }
+                            - { DHCP container : 10.0.0.102/32 }
                             dhcp_pairs:
-                            - 'ubudhcp01'
+                            - ubudhcp01
                             renew_all_secrets: false
 ```
 
 Details
 =======
 
-**ca_organisation:** `string`
+**dns_master_zones:** `{ forward : [], reverse : [] }`
 
-   Name of your organisation.
+   forward: list of all the forward zones this DNS will handle
+  
 
 **ca_ou:** `string`
 

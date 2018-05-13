@@ -1,53 +1,51 @@
 ---
 - name: Install packages
-  apt:
-    name: '{{ item }}'
-    state: latest
-    update_cache: yes
-    cache_valid_time: 3600
-  loop:
-    - apt-utils
-    - bash-completion
-    - dnsutils
-    - htop
-    - iftop
-    - man-db
-    - curl
-    - tcpdump
-    - mlocate
-    - net-tools
-    - git
-    - apparmor
-    - apparmor-profiles
-    - apparmor-profiles-extra
-    - apparmor-utils
-    - lxd
-    - lxd-client
-    - lxd-tools
-    - criu
-    - openssh-server
-    - bsdmainutils
-    - dmidecode
-    - hdparm
-    - iptables
-    - iputils-tracepath
-    - lsof
-    - ltrace
-    - manpages
-    - pciutils
-    - rsync
-    - strace
-    - tcpdump
-    - telnet
-    - time
-    - traceroute
-    - vim
-    - tree
-    - jq
+  action: >
+    apt name={{ item }} update_cache=yes cache_valid_time=3600 state=latest
+  with_list:
+  - apt-utils
+  - bash-completion
+  - dnsutils
+  - htop
+  - iftop
+  - man-db
+  - curl
+  - tcpdump
+  - mlocate
+  - net-tools
+  - git
+  - apparmor
+  - apparmor-profiles
+  - apparmor-profiles-extra
+  - apparmor-utils
+  - lxd
+  - lxd-client
+  - lxd-tools
+  - criu
+  - openssh-server
+  - bsdmainutils
+  - dmidecode
+  - hdparm
+  - iptables
+  - iputils-tracepath
+  - lsof
+  - ltrace
+  - manpages
+  - pciutils
+  - rsync
+  - strace
+  - tcpdump
+  - telnet
+  - time
+  - traceroute
+  - vim
+  - tree
+  - jq
 
 - name: Verify all packages are up-to-date
   apt:
     upgrade: yes
+    force_apt_get: yes
 
 - name: clears out the local repository of retrieved package files
   command: apt-get clean warn=false

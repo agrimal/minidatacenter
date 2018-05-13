@@ -1,4 +1,8 @@
 ---
+################################################################################
+## NETWORK
+################################################################################
+
 - name: Configure network
   vars:
     network_config: "{{ { 'network' : network } }}"
@@ -17,45 +21,166 @@
   when:
   - configure_network_task.changed
 
-- name: Verify "/root/.ssh" directory exists
+################################################################################
+## SSH
+################################################################################
+
+- name: Be sure that "/root/.ssh" directory exists
   file:
     path: /root/.ssh
     state: directory
     mode: 0700
 
 - name: Copy root's SSH key into the container
-  copy:
-    src: "/root/.ssh/id_ed25519.pub"
-    dest: "/root/.ssh/authorized_keys"
+  blockinfile:
+    block: "{{ lookup('file', '/root/.ssh/id_ed25519.pub') }}"
+    path: "/root/.ssh/authorized_keys"
     owner: root
     group: root
     mode: 0644
 
-- include_tasks: rsyslog.yml
-- include_tasks: logrotate.yml
-- include_tasks: motd.yml
-- include_tasks: systemd-resolved.yml
-- include_tasks: apt.yml
+################################################################################
+## RSYSLOG
+################################################################################
+
+- name: Copy /etc/rsyslog.conf
+  copy:
+    src: "{{ role_path }}/files/rsyslog_rsyslog.conf"
+    dest: /etc/rsyslog.conf
+    owner: root
+    group: root
+    mode: 0644
+  register: rsyslog_conf_task
+
+- name: Copy /etc/rsyslog.d/50-default.conf
+  copy:
+    src: "{{ role_path }}/files/rsyslog_50-default.conf"
+    dest: /etc/rsyslog.d/50-default.conf
+    owner: root
+    group: root
+    mode: 0644
+  register: rsyslog_default_conf_task
+
+- name: Restart rsyslog
+  systemd:
+    name: rsyslog
+    state: restarted
+  when:
+  - rsyslog_conf_task.changed or
+    rsyslog_default_conf_task.changed
+
+################################################################################
+## LOGROTATE
+################################################################################
+
+- name: Copy "/etc/logrotate.conf"
+  copy:
+    src: "{{ role_path }}/files/logrotate_logrotate.conf"
+    dest: /etc/logrotate.conf
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Copy /etc/logrotate.d/rsyslog
+  copy:
+    src: "{{ role_path }}/files/logrotate_rsyslog"
+    dest: /etc/logrotate.d/rsyslog
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Force -f option with '/usr/sbin/logrotate /etc/logrotate.conf' in /etc/cron.daily/logrotate
+  lineinfile:
+    path: /etc/cron.daily/logrotate
+    regexp: '(/usr/sbin/logrotate) (/etc/logrotate.conf)'
+    line: '\1 -f \2'
+    state: present
+    backrefs: yes
+
+################################################################################
+## MOTD
+################################################################################
+
+- name: Deactivate Message of the day
+  lineinfile:
+    path: /etc/default/motd-news
+    regexp: '(ENABLED=)1'
+    line: '\g<1>0'
+    state: present
+    backrefs: yes
+
+- name: Deactivate Message of the day systemd timer
+  systemd:
+    name: motd-news.timer
+    enabled: no
+
+################################################################################
+## SYSTEMD-RESOLVED
+################################################################################
+
+- name: Copy /etc/systemd/resolved.conf
+  copy:
+    src: "{{ role_path }}/files/systemd-resolved_resolved.conf"
+    dest: /etc/systemd/resolved.conf
+    owner: root
+    group: root
+    mode: 0644
+
+################################################################################
+## APT
+################################################################################
+
+- name: Install packages
+  action: >
+    apt name={{ item }} update_cache=yes cache_valid_time=3600 state=latest
+  with_list:
+  - apt-utils
+  - bash-completion
+  - dnsutils
+  - htop
+  - iftop
+  - man-db
+  - curl
+  - tcpdump
+  - mlocate
+  - net-tools
+  - openssh-server
+
+- name: Verify all packages are up-to-date
+  apt:
+    upgrade: yes
+    force_apt_get: yes
+
+- name: clears out the local repository of retrieved package files
+  command: apt-get clean warn=false
+  changed_when: false
+
+################################################################################
+## TIMEZONE
+################################################################################
 
 - name: Set timezone to "{{ local_timezone }}"
   timezone:
     name: "{{ local_timezone }}"
 
-- name: Copy /root/.bashrc
-  copy:
-    src: "{{ role_path }}/files/main_.bashrc"
-    dest: /root/.bashrc
-    owner: root
-    group: root
-    mode: 0644
+################################################################################
+## .BASHRC | .VIMRC
+################################################################################
 
-- name: Copy /root/.vimrc
+- name: Copy "/root/.bashrc" and "/root/.vimrc"
   copy:
-    src: "{{ role_path }}/files/main_.vimrc"
-    dest: /root/.vimrc
+    src: "{{ role_path }}/files/main_{{ item }}"
+    dest: "/root/{{ item }}"
     owner: root
     group: root
-    mode: 0644
+    mode: 0640
+  with_list:
+  - .bashrc
+  - .vimrc
+
+################################################################################
+## LDAP
+################################################################################
 
 - name: Copy /etc/ldap/ldap.conf
   template:
@@ -64,3 +189,22 @@
     owner: root 
     group: root
     mode: 0644
+
+################################################################################
+## SYSTEMD-TIMESYNCD
+################################################################################
+
+- name: Disable systemd service "systemd-timesyncd"
+  systemd:
+    name: systemd-timesyncd
+    state: stopped
+    enabled: no
+
+################################################################################
+## SYS-KERNEL-CONFIG.MOUNT
+################################################################################
+
+- name: Mask systemd mount "sys-kernel-config"
+  systemd:
+    name: sys-kernel-config.mount
+    masked: yes

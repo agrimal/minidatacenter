@@ -104,12 +104,14 @@
   systemd:
     name: apache2
     state: reloaded
-  when:
-  - a2enmod_task.changed or
-    a2dissite_000default_task is defined and a2dissite_000default_task.changed or
-    a2ensite_port80redirect_task is defined and a2ensite_port80redirect_task.changed or
-    a2ensite_port443lam_task is defined and a2ensite_port443lam_task.changed or
-    modify_mod_mpm_prefork_task.changed
+  when: a2enmod_task.changed or
+        copy_ca_crt_task.changed or
+        copy_ldap_crt_task.changed or
+        copy_ldap_key_task.changed or
+        a2dissite_000default_task is defined and a2dissite_000default_task.changed or
+        a2ensite_port80redirect_task is defined and a2ensite_port80redirect_task.changed or
+        a2ensite_port443lam_task is defined and a2ensite_port443lam_task.changed or
+        modify_mod_mpm_prefork_task.changed
 
 #
 # Backup / Restore
