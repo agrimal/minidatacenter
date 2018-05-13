@@ -5,7 +5,6 @@
 
 **From the Domain Name System page on [Wikipedia]
 (https://en.wikipedia.org/wiki/Domain_Name_System) :**
----
 
 The Domain Name System (DNS) is a hierarchical decentralized naming system for
 computers, services, or other resources connected to the Internet or a private
@@ -149,9 +148,16 @@ all:
 Details
 =======
 
-**dns_master_zones:** `{ forward : [], reverse : [] }`
+**dns_master_zones:** `{ forward : [{fwd_zone_1}, {fwd_zone_2}, …], reverse : [{rvs_zone_1}, {rvs_zone_2}, …] }`
 
-   forward: list of all the forward zones this DNS will handle
+* **forward:** `list of dictionaries` Each dictionary is a forward DNS zone  with the following keys :
+  * **name:** `string` Name of the zone.  
+    **ns_a_record:** `string` FQDN of this server in this zone, without the last dot, for the NS record (ex : 'dns.my-domain.com').  
+    **ns_ip:** `string` IP address of this server in this zone, for the NS record (ex : '192.168.1.5').  
+    **ns_contact:** `string` First part of the email address (before the @) of the contact for this zone (ex : 'admin').  
+    **a_records:** `[[string, string], …]` List of each A record in this zone. Each record is a list of 2 strings.  
+                   The first string is the domain name, without the zone (ex : 'my-computer')  
+                   The second string is the IP address (ex : '192.168.1.10')  
   
 
 **ca_ou:** `string`
