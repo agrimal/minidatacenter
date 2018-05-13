@@ -4,7 +4,7 @@
     name: debconf-utils
     update_cache: yes
     cache_valid_time: 3600
-    state: present
+    state: latest
 
 - name: Read slapd debconf selections
   debconf:
@@ -56,7 +56,7 @@
     name: "{{ item }}"
     update_cache: yes
     cache_valid_time: 3600
-    state: present
+    state: latest
   loop:
   - slapd
   - ldap-utils

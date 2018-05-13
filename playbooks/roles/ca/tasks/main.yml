@@ -1,15 +1,23 @@
 ---
-# role certificate_authority - file main.yml
-- set_fact:
+- name: Define EasyRSA source directory as '/usr/share/easy-rsa'
+  set_fact:
     easy_rsa_source_dir: "/usr/share/easy-rsa"
 
-- name: Update repositories cache and install "easy-rsa" package
+- name: Install packages
+  action: >
+    {{ ansible_pkg_mgr }} name={{ item }} update_cache=yes cache_valid_time=3600 state=latest
+  with_list:
+  - easy-rsa
+  - rsync
+
+- name: Verify all packages are up-to-date
   apt:
-    name: easy-rsa
-    state: present
-    update_cache: yes
-    cache_valid_time: 3600
-  tags: packages
+    upgrade: yes
+    force_apt_get: yes
+
+- name: clears out the local repository of retrieved package files
+  command: apt-get clean warn=false
+  changed_when: false
 
 - name: Create the directory "{{ ca_easy_rsa_install_dir }}" 
   file:
@@ -17,7 +25,6 @@
     state: directory
     mode: 0750
 
-# Get a recursive list of all files in source_dir
 - name: List files and directories in "{{ easy_rsa_source_dir }}"
   find:
     path: "{{ easy_rsa_source_dir }}"
@@ -25,38 +32,44 @@
     file_type: any
   register: find_result_easy_rsa_source_dir
 
-# Copy directories but not files
 - name: Create in "{{ ca_easy_rsa_install_dir }}" the directories found in "{{ easy_rsa_source_dir }}" 
   file:
     path: "{{ item.path | regex_replace(easy_rsa_source_dir, ca_easy_rsa_install_dir) }}"
     state: directory
     mode: "{{ item.mode }}"
-  with_items:
-  - "{{ find_result_easy_rsa_source_dir.files }}"
-  when:
-  - item.isdir
+  with_list: "{{ find_result_easy_rsa_source_dir.files }}"
   loop_control:
     label: "{{ item.path }}"  
+  when: item.isdir
 
-# Copy all files except directories and 'vars'
 - name: Copy the files (except 'vars') from "{{ easy_rsa_source_dir }}" to "{{ ca_easy_rsa_install_dir }}"
   copy:
+    remote_src: yes
     src: "{{ item.path }}"
     dest: "{{ item.path | regex_replace(easy_rsa_source_dir, ca_easy_rsa_install_dir) }}"
-    remote_src: yes
     mode: "{{ item.mode }}"
-  with_items:
-    - "{{ find_result_easy_rsa_source_dir.files }}"
-  when:
-    - (item.isdir == False) and (item.path != (easy_rsa_source_dir + "/vars"))
+  with_list: "{{ find_result_easy_rsa_source_dir.files }}"
   loop_control:
     label: "{{ item.path }}"  
+  when:
+  - not item.isdir
+  - item.path != (easy_rsa_source_dir + "/vars")
 
 - name: Create the directory "keys" in "{{ ca_easy_rsa_install_dir }}"
   file:
     path: "{{ ca_easy_rsa_install_dir }}/keys"
     state: directory
     mode: 0700
+  register: create_easy_rsa_keys_directory_task
+
+- name: Copy "{{ minidc_working_directory }}/{{ inventory_hostname }}{{ ca_easy_rsa_install_dir }}/keys" (localhost) into "{{ ca_easy_rsa_install_dir }}/keys }}" (container)
+  synchronize:
+    mode: push
+    archive: yes
+    delete: yes
+    src: "{{ minidc_working_directory }}/{{ inventory_hostname }}{{ ca_easy_rsa_install_dir }}/keys"
+    dest: "{{ ca_easy_rsa_install_dir }}"
+  when: push_data_from_minidc_working_directory
 
 - name: Copy the 'vars' file from local template into "{{ ca_easy_rsa_install_dir }}"
   template:
@@ -66,16 +79,13 @@
     group: root
     mode: 0644
 
-# Delete every key and certificate if ansible_renew_all is set to True in inventory.yml
 - name: Clean all previously generated keys and certificates
   shell: . vars && ./clean-all
   args:
     chdir: "{{ ca_easy_rsa_install_dir }}"
     executable: /bin/bash
-  when:
-    - ansible_renew_all
+  when: renew_all_secrets
 
-# Get a recursive list of all files in source_dir
 - name: List files in "{{ ca_easy_rsa_install_dir }}/keys"
   find:
     path: "{{ ca_easy_rsa_install_dir }}/keys"
@@ -83,35 +93,29 @@
     file_type: file
   register: find_result_ca_easy_rsa_install_dir_keys
 
-# Create the list of files present in ca_easy_rsa_install_dir/keys
-- set_fact:
+- name: Create the list of files present in "{{ ca_easy_rsa_install_dir }}/keys"
+  set_fact:
     files_in_keys_directory: "{{ find_result_ca_easy_rsa_install_dir_keys.files | map(attribute='path') | list }}"
 
-# Only generate if ca.crt, ca.key or index.txt are not in ca_easy_rsa_install_dir/keys
 - name: Generate the CA private key and certificate
   shell: source vars && ./clean-all && ./pkitool --initca
   args:
     chdir: "{{ ca_easy_rsa_install_dir }}"
     executable: /bin/bash
-  when:
-    - (ca_easy_rsa_install_dir + "/keys/ca.crt") not in files_in_keys_directory or
-      (ca_easy_rsa_install_dir + "/keys/ca.key") not in files_in_keys_directory or
-      (ca_easy_rsa_install_dir + "/keys/index.txt") not in files_in_keys_directory
+  when: (ca_easy_rsa_install_dir + "/keys/ca.crt") not in files_in_keys_directory or
+        (ca_easy_rsa_install_dir + "/keys/ca.key") not in files_in_keys_directory or
+        (ca_easy_rsa_install_dir + "/keys/index.txt") not in files_in_keys_directory
 
-# Only generate if dh.pem is not in ca_easy_rsa_install_dir/keys
 - name: Generate the Diffie-Hellman key
   shell: source vars && ./build-dh
   args:
     chdir: "{{ ca_easy_rsa_install_dir }}"
     executable: /bin/bash
-  when:
-    - (ca_easy_rsa_install_dir + "/keys/dh" + ca_key_size + ".pem") not in files_in_keys_directory
+  async: 600
+  poll: 0
   register: diffie_hellman_generation
-# The following doesn't work as of ansible 2.4.3, have to wait for 2.4.4 where bug is fixed.
-#  async: 300
-#  poll: 5
+  when: (ca_easy_rsa_install_dir + "/keys/dh" + ca_key_size | string + ".pem") not in files_in_keys_directory
 
-# Slurp index.txt
 - name: Read "{{ ca_easy_rsa_install_dir }}/keys/index.txt"
   slurp:
     src: "{{ ca_easy_rsa_install_dir }}/keys/index.txt"
@@ -122,70 +126,67 @@
     valid_certificates_for_ca: "{{ index_txt['content'] | b64decode | regex_findall('V\t.*\n') | map('regex_replace', '^V.*/CN=(.*)/name=.*\n$', '\\1') | list }}"
     revoked_certificates_for_ca: "{{ index_txt['content'] | b64decode | regex_findall('R\t.*\n') | map('regex_replace', '^R.*/CN=(.*)/name=.*\n$', '\\1') | list }}"
 
-# Only generate if server_name.crt or server_name.key are not in ca_easy_rsa_install_dir/keys or if the certificate is revoked
 - name: Generate the servers private keys and certificates
   shell: . vars && ./pkitool --server "{{ item }}"
   args:
     chdir: "{{ ca_easy_rsa_install_dir }}"
     executable: /bin/bash
-  with_items:
-    - "{{ ca_certificates.servers }}"
-  when:
-    - (ca_easy_rsa_install_dir + "/keys/" + item + ".key") not in files_in_keys_directory or
-      (ca_easy_rsa_install_dir + "/keys/" + item + ".crt") not in files_in_keys_directory or
-      item not in valid_certificates_for_ca
+  with_list: "{{ ca_certificates.servers }}"
+  when: (ca_easy_rsa_install_dir + "/keys/" + item + ".key") not in files_in_keys_directory or
+        (ca_easy_rsa_install_dir + "/keys/" + item + ".crt") not in files_in_keys_directory or
+        item not in valid_certificates_for_ca
 
-# Only generate if client_name.crt or client_name.key are not in ca_easy_rsa_install_dir/keys or if the certificate is revoked
 - name: Generate the clients private keys and certificates
   shell: source vars && ./pkitool "{{ item }}"
   args:
     chdir: "{{ ca_easy_rsa_install_dir }}"
     executable: /bin/bash
-  with_items:
-    - "{{ ca_certificates.clients }}"
-  when:
-    - (ca_easy_rsa_install_dir + "/keys/" + item + ".key") not in files_in_keys_directory or
-      (ca_easy_rsa_install_dir + "/keys/" + item + ".crt") not in files_in_keys_directory or
-      item not in valid_certificates_for_ca
+  with_list: "{{ ca_certificates.clients }}"
+  when: (ca_easy_rsa_install_dir + "/keys/" + item + ".key") not in files_in_keys_directory or
+        (ca_easy_rsa_install_dir + "/keys/" + item + ".crt") not in files_in_keys_directory or
+        item not in valid_certificates_for_ca
 
-# Revoke certificates not in the allowed lists
+- name: Find all CSR files
+  find:
+    paths: '{{ ca_easy_rsa_install_dir }}/keys'
+    patterns: '*.csr'
+    use_regex: no
+  register: find_csr_files_task
+
+- name: Delete CSR files
+  file:
+    path: '{{ item.path }}'
+    state: absent
+  with_list: '{{ find_csr_files_task.files }}'
+  loop_control:
+    label: '{{ item.path }}'
+
 - name: Revoke the certificates removed from config file
   shell: source vars && ./revoke-full "{{ item }}"
   args:
     chdir: "{{ ca_easy_rsa_install_dir }}"
     executable: /bin/bash
-  with_items:
-    - "{{ valid_certificates_for_ca }}"
+  with_list: "{{ valid_certificates_for_ca }}"
   when:
-    - item not in ca_certificates.servers
-    - item not in ca_certificates.clients
+  - item not in ca_certificates.servers
+  - item not in ca_certificates.clients
   register: revoke_result
   failed_when: revoke_result.rc != 2
 
-# The following doesn't work as of ansible 2.4.3, have to have for 2.4.4 where bug is fixed.
-#- name: Waiting for Diffie-Hellman key to be generated
-#  async_status:
-#    jid: "{{ diffie_hellman_generation.ansible_job_id }}"
-#  register: job_result
-#  until: job_result.finished
-#  retries: 30
+- name: Waiting for Diffie-Hellman key to be generated
+  async_status:
+    jid: "{{ diffie_hellman_generation.ansible_job_id }}"
+  register: job_result
+  until: job_result.finished
+  retries: 120
+  delay: 5
+  when: diffie_hellman_generation.changed
 
-# Copy all keys and certificates on localhost
-- name: Copy keys and certificates on localhost in "{{ minidc_working_directory }}"
-  fetch:
-    src: "{{ ca_easy_rsa_install_dir }}/keys/{{ item }}"
-    dest: "{{ minidc_working_directory }}"
-  with_items:
-    - "{{ ca_certificates.clients | map('regex_replace', '^(.*)$', '\\1.crt') | list }}"
-    - "{{ ca_certificates.clients | map('regex_replace', '^(.*)$', '\\1.key') | list }}"
-    - "{{ ca_certificates.servers | map('regex_replace', '^(.*)$', '\\1.crt') | list }}"
-    - "{{ ca_certificates.servers | map('regex_replace', '^(.*)$', '\\1.key') | list }}"
-    - "ca.crt"
-    - "ca.key"
-    - "dh{{ ca_key_size }}.pem"
-
-- name: Copy CRL (Certificates Revoke List) if there is one
-  fetch:
-    src: "{{ ca_easy_rsa_install_dir }}/keys/crl.pem"
-    dest: "{{ minidc_working_directory }}"
-    fail_on_missing: no
+- name: Copy files from "{{ ca_easy_rsa_install_dir }}/keys }}" (container) into "{{ minidc_working_directory }}/{{ inventory_hostname }}{{ ca_easy_rsa_install_dir }}/keys" (localhost)
+  synchronize:
+    mode: pull
+    archive: yes
+    delete: yes
+    src: "{{ ca_easy_rsa_install_dir }}/keys"
+    dest: "{{ minidc_working_directory }}/{{ inventory_hostname }}{{ ca_easy_rsa_install_dir }}"
+  when: not push_data_from_minidc_working_directory

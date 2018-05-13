@@ -1,7 +1,8 @@
 ---
-- name: Verify all required packages are installed
+- name: Install packages
   apt:
-    name: "{{ item }}"
+    name: '{{ item }}'
+    state: latest
     update_cache: yes
     cache_valid_time: 3600
   loop:
@@ -46,7 +47,11 @@
 
 - name: Verify all packages are up-to-date
   apt:
-    upgrade: dist
+    upgrade: yes
+
+- name: clears out the local repository of retrieved package files
+  command: apt-get clean warn=false
+  changed_when: false
 
 - name: Copy "/root/.profile", "/root/.bashrc", "/root/.bash_aliases" and "/root/.vimrc"
   copy:
@@ -119,7 +124,7 @@
     owner: root
     group: root
 
-- name: Configure network
+- name: Configure the network
   vars:
     network_config: "{{ { 'network' : network } }}"
   copy:

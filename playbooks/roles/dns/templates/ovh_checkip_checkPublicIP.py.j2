@@ -1,0 +1,37 @@
+#!/usr/bin/env python3
+
+import ovh, dnsq, syslog
+
+change = 0
+zone = "{{ ovh_checkip_domain }}"
+myip_url = "myip.opendns.com"
+opendns_serv = "resolver1.opendns.com"
+subDomains_list = ({% for subdomain in ovh_checkip_subdomains %}'{{ subdomain }}', {% endfor %})
+
+syslog.openlog(facility=syslog.LOG_LOCAL0)
+
+def log(*args):
+    for line in args:
+        syslog.syslog(syslog.LOG_INFO, line)
+
+# Get public IP
+myip = dnsq.query_dns(myip_url, 'A', ns_server=opendns_serv)[0]
+log("My public IP is : " + str(myip) + " - Checking DNS...")
+
+# Start connection to OVH
+client = ovh.Client(config_file='/usr/local/sbin/ovh.conf')
+
+# For each record
+for record_id in client.get('/domain/zone/' + zone + '/record'):
+    record = client.get('/domain/zone/' + zone + '/record/' + str(record_id))
+    # If the record type is A, the sub-domain is in the list and the IP is different
+    if record['fieldType'] == 'A' and record['subDomain'] in subDomains_list and record['target'] != myip:
+            result = client.put('/domain/zone/' + zone + '/record/' + str(record['id']), target=myip, ttl=0, subDomain=record['subDomain'])
+            subDomain = '' if record['subDomain'] is None else record['subDomain']
+            log(">>>> Changing IP of " + subDomain + "." + zone)
+            change = 1
+
+if change == 0:
+    log("Nothing to change.")
+
+syslog.closelog()

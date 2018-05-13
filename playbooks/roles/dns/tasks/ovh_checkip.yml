@@ -1,0 +1,71 @@
+---
+- name: Copy "/usr/local/checkPublicIP.py"
+  template:
+    src: "{{ role_path }}/templates/ovh_checkip_checkPublicIP.py.j2"
+    dest: /usr/local/sbin/checkPublicIP.py
+    mode: 0740
+
+- name: Copy "/usr/local/getConsumerKey.py"
+  copy:
+    src: "{{ role_path }}/files/ovh_checkip_getConsumerKey.py"
+    dest: /usr/local/sbin/getConsumerKey.py
+    mode: 0740
+
+- name: Copy "/usr/local/sbin/ovh.conf"
+  template:
+    src: "{{ role_path }}/templates/ovh_checkip_ovh.conf.j2"
+    dest: /usr/local/sbin/ovh.conf
+    mode: 0400
+  when:
+  - ovh_checkip_application_key is defined
+  - ovh_checkip_application_secret is defined
+  - ovh_checkip_consumer_key is defined
+
+- name: Install "python3-pip" package
+  apt:
+    name: python3-pip
+    update_cache: yes
+    cache_valid_time: 3600
+    state: latest
+
+- name: Install OVH pip package
+  pip:
+    name: ovh
+
+- name: Create check_public_ip.service or verify it exists
+  copy:
+    content: |
+      [Unit]
+      Description=Check Public IP service
+
+      [Service]
+      ExecStart=/usr/local/sbin/checkPublicIP.py
+      Type=oneshot
+    dest: /etc/systemd/system/check_public_ip.service
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Create check_public_ip.timer or verify it exists
+  copy:
+    content: |
+      [Unit]
+      Description=Run check_public_ip every 15 to 20 minutes
+
+      [Timer]
+      OnCalendar=*:0/15
+      RandomizedDelaySec=5min
+
+      [Install]
+      WantedBy=timers.target
+    dest: /etc/systemd/system/check_public_ip.timer
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Enable and start systemd timer "check_public_ip.timer"
+  systemd:
+    daemon-reload: yes
+    name: check_public_ip.timer
+    enabled: yes
+    state: started
