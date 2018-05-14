@@ -145,80 +145,45 @@ all:
                             renew_all_secrets: false
 ```
 
-Details
-=======
+### Details
 
 **dns_master_zones:** `{ forward : [{fwd_zone_1}, {fwd_zone_2}, …], reverse : [{rvs_zone_1}, {rvs_zone_2}, …] }`
 
 * **forward:** `list of dictionaries` Each dictionary is a forward DNS zone  with the following keys :
   * **name:** `string` Name of the zone.  
-    **ns_a_record:** `string` FQDN of this server in this zone, without the last dot, for the NS record (ex : 'dns.my-domain.com').  
-    **ns_ip:** `string` IP address of this server in this zone, for the NS record (ex : '192.168.1.5').  
-    **ns_contact:** `string` First part of the email address (before the @) of the contact for this zone (ex : 'admin').  
-    **a_records:** `[[string, string], …]` List of each A record in this zone. Each record is a list of 2 strings.  
-                   The first string is the domain name, without the zone (ex : 'my-computer')  
-                   The second string is the IP address (ex : '192.168.1.10')  
-  
-
-**ca_ou:** `string`
-
-   Name of your organizational unit.
-
-**ca_country:** `string`
-
-   Two-letter code (ISO 3166-1 alpha-2) of your country (cf. [Wikipedia](https://
-en.wikipedia.org/wiki/ISO_3166-1_alpha-2))
-
-**ca_province:** `string`
-    
-    Name of your province.
-
-**ca_city:** `string`
-
-    Name of your city.
-
-**ca_email:** `string`
-
-    Email of the administrator of the CA.
-
-**ca_easy_rsa_install_dir:** `string`
-
-    Directory where to install Easy-RSA.
-
-**ca_key_size:** `integer`
-
-    Size (in bits) of the keys.
-
-**ca_ca_expire:** `integer`
-
-    Number of days of CA key validity.
-
-**ca_key_expire:** `integer`
-
-    Number of days of certificates validity.
-
-**ca_certificates:** `{ servers: [string, …], clients: [string, …] }`
-
-    Names of the certificates that you want to generate.
-Put in 'servers' the servers certificates and in 'clients' the clients
-certificates.
-When you delete a certificate from one list, it is revoked and added to the
-Certificate Revokation List (CRL).
+              (ex : my-domain.com)  
+    **ns_a_record:** `string` FQDN of this server in this zone, without the last dot, for the NS record.  
+                     (ex : dns.my-domain.com)  
+    **ns_ip:** `string` IP address of this server in this zone, for the NS record.  
+               (ex : 192.168.1.5)  
+    **ns_contact:** `string` First part of the email address (before the @) of the contact for this zone.  
+                    (ex : admin).  
+    **a_records:** `[[string, string], …]` List of each A record in this zone. each record is a list of 2 strings.  
+                   The first string is the domain name, without the zone (ex : my-server).  
+                   The second string is the IP address (ex : 192.168.1.10).  
+    **txt_records:** `[[string, string], …]` List of each TXT record in this zone. Each record is a list of 2 strings.  
+                     The first string is the domain name, without the zone (ex : my-server).  
+                     The second string is the double-quoted text value (ex : '"This is a good server"').  
+    **cname_records:** `[[string, string], …]` List of each CNAME record in this zone. Each record is a list of 2 strings.  
+                       The first string is the alias (ex : service).  
+                       The second string is the domain name, without the zone (ex : my-server).  
+* **reverse:** `list of dictionaries` Each dictionary is a reverse DNS zone  with the following keys :
+  * **subnet:** `string` Subnet of the zone in CIDR notation.  
+              (ex : 192.168.1.0/24)  
+    **ns_url:** `string` FQDN of this server in this zone, without the last dot, for the NS record.  
+                     (ex : dns.my-domain.com)  
+    **ns_contact:** `string` First part of the email address (before the @) of the contact for this zone.  
+                    (ex : admin).  
+    **ptr_records:** `[[string, string], …]` List of each PTR record in this zone. each record is a list of 2 strings.  
+                   The first string is the FQDN, without the last dot (ex : my-server.my-domain.com).  
+                   The second string is the IP address (ex : 192.168.1.10).  
 
 **renew_all_secrets:** `boolean`
 
-    If you run the playbook with this parameter set to 'true', then all keys and
-certificates (including the CA's ones) will be deleted and generated again.
+    If you run the playbook with this parameter set to 'true', then all keys (TSIG) will be deleted and generated again.
 
-**push_data_from_minidc_working_directory:** `boolean`
+### Usage
 
-    If you run the playbook with this parameter set to 'true', then all the
-directory containing the keys and the certificates will be copied from the host
-to the container. This is useful if you want to restore a backup.
+**Alias :** `deploy_dns`
 
-Usage
-=====
-
-**Alias :** `deploy_ca`
-
-**Name of the playbook :** setup-ca.yml
+**Name of the playbook :** setup-dns.yml
