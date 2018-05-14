@@ -3,8 +3,7 @@
 
 ### Description
 
-**From the Domain Name System page on [Wikipedia]
-(https://en.wikipedia.org/wiki/Domain_Name_System) :**
+**From the Domain Name System page on [Wikipedia](https://en.wikipedia.org/wiki/Domain_Name_System) :**
 
 The Domain Name System (DNS) is a hierarchical decentralized naming system for
 computers, services, or other resources connected to the Internet or a private
