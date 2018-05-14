@@ -140,7 +140,7 @@ all:
                             dns_admins:
                             - { DHCP container : 10.0.0.102/32 }
                             dhcp_pairs:
-                            - ubudhcp01
+                            - dhcp-container
                             renew_all_secrets: false
 ```
 
