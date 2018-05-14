@@ -169,18 +169,36 @@ all:
                        The second string is the domain name, without the zone (ex : my-server).  
 * **reverse:** `list of dictionaries` Each dictionary is a reverse DNS zone  with the following keys :
   * **subnet:** `string` Subnet of the zone in CIDR notation.  
-              (ex : 192.168.1.0/24)  
+                (ex : 192.168.1.0/24)  
     **ns_url:** `string` FQDN of this server in this zone, without the last dot, for the NS record.  
-                     (ex : dns.my-domain.com)  
+                (ex : dns.my-domain.com)  
     **ns_contact:** `string` First part of the email address (before the @) of the contact for this zone.  
                     (ex : admin).  
     **ptr_records:** `[[string, string], …]` List of each PTR record in this zone. each record is a list of 2 strings.  
-                   The first string is the FQDN, without the last dot (ex : my-server.my-domain.com).  
-                   The second string is the IP address (ex : 192.168.1.10).  
+                     The first string is the FQDN, without the last dot (ex : my-server.my-domain.com).  
+                     The second string is the IP address (ex : 192.168.1.10).  
+
+**dns_clients:** `[{ string : string }, …]` 
+
+   List of dictionaries. Each dictionary is an ACL allowing to query the DNS server.
+The first string is the name of the ACL, in fact it's just a comment in the configuration file) (ex : Clients).
+The second string is the CIDR subnet allowed to query the DNS (ex : 192.168.0.0/24).
+
+**dns_admins:** `[{ string : string }, …]`
+
+   List of dictionaries. Each dictionary is an ACL allowing to update the DNS server.
+The first string is the name of the ACL, in fact it's just a comment in the configuration file) (ex : DHCP Container).
+The second string is the CIDR subnet allowed to query the DNS (ex : 10.0.0.102/32).
+
+**dhcp_pairs:** `[string, …]`
+
+   List of strings.
+   Each string is the name of a DHCP server paired with this DNS server.
+   The DHCP leases given by the DHCP server will be verified and updated in the DNS server.
 
 **renew_all_secrets:** `boolean`
 
-    If you run the playbook with this parameter set to 'true', then all keys (TSIG) will be deleted and generated again.
+   If you run the playbook with this parameter set to 'true', then all keys (TSIG) will be deleted and generated again.
 
 ### Usage
 
