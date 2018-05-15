@@ -47,7 +47,7 @@ git clone https://github.com/agrimal/minidatacenter.git /opt/minidc
 /opt/minidc/scripts/bootstrap-minidc.sh
 ```
 
-4. Modify the config.yml file accordingly to your needs and the [doc](docs)
+4. Modify the inventory.yml file accordingly to your needs and the [doc](docs)
 
 5. Launch the Ansible playbook :
 
