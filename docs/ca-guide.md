@@ -1,8 +1,8 @@
 # The MiniDataCenter Project
+
 ## Certificate Authority Guide
 
-Description
-===========
+### Description
 
 **From the Certificate Authority page on [Wikipedia](https://en.wikipedia.org/wiki/Certificate_authority) :**
 
@@ -16,8 +16,7 @@ Easy-RSA is a CLI utility to build and manage a PKI CA.
 
 In laymen's terms, this means to create a root certificate authority, and request and sign certificates, including sub-CAs and certificate revocation lists (CRL).
 
-Configuration
-=============
+### Configuration
 
 Example :
 ```yaml
@@ -64,8 +63,7 @@ all:
                             push_data_from_minidc_working_directory: false
 ```
 
-Details
-=======
+### Details
 
 **ca_organisation:** `string`
 
@@ -127,8 +125,7 @@ certificates (including the CA's ones) will be deleted and generated again.
 directory containing the keys and the certificates will be copied from the host
 to the container. This is useful if you want to restore a backup.
 
-Usage
-=====
+### Usage
 
 **Alias :** `deploy_ca`
 
