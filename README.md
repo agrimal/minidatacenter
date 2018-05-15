@@ -11,7 +11,7 @@ What your need is just a single physical computer, connected to the internet
 via your ISP router. This program will then deploy several preconfigured LXD  
 containers, using Ansible, an automation tool, with the following roles :
 
-Fully Implemented :
+**Fully Implemented :**
 - [x] Certificate Authority (with Easy-RSA)
 - [x] DNS (with Bind)
 - [x] DHCP (with ISC-DHCP-Server)
@@ -19,11 +19,11 @@ Fully Implemented :
 - [x] LDAP (with OpenLDAP)
 - [x] LDAP Web Interface (with LDAP-Account-Manager)
 
-Partially implemented :
+**Partially implemented :**
 - [x] Reverse Proxy Server (with Nginx)
 - [x] DLNA Server (with Plex)
 
-Coming soon :
+**Coming soon :**
 - [ ] Mail Server (with Cyrus)
 - [ ] SMTP Relay Server (with Postfix)
 - [ ] Samba share
