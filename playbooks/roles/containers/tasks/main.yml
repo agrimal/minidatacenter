@@ -31,13 +31,24 @@
     state: directory
     mode: 0700
 
+- name: Check if "/root/.ssh/authorized_keys" file exists
+  stat:
+    path: /root/.ssh/authorized_keys
+  register: root_ssh_authorized_keys
+
+- name: Be sure that "/root/.ssh/authorized_keys" file exists
+  file:
+    path: /root/.ssh/authorized_keys
+    mode: 0640
+    owner: root
+    group: root
+    state: touch
+  when: not root_ssh_authorized_keys.stat.exists
+
 - name: Copy root's SSH key into the container
   blockinfile:
     block: "{{ lookup('file', '/root/.ssh/id_ed25519.pub') }}"
     path: "/root/.ssh/authorized_keys"
-    owner: root
-    group: root
-    mode: 0644
 
 ################################################################################
 ## RSYSLOG

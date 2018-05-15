@@ -38,7 +38,7 @@
   local_action:
     module: template
     src: "{{ role_path }}/templates/main_client.conf.j2"
-    dest: "{{ minidc_working_directory }}/{{ ca_server }}{{ hostvars[ca_server]['ca_easy_rsa_install_dir'] }}/keys/{{ item }}.ovpn"
+    dest: "{{ minidc_working_directory }}/{{ ca_server }}{{ hostvars[ca_server]['ca_easy_rsa_install_dir'] }}/{{ item }}.ovpn"
     owner: root
     group: root
     mode: 0644

@@ -1,7 +1,6 @@
 # The MiniDataCenter Project
 
-Description
-===========
+### Description
 
 At the time of cloud-based infrastructure, where your personal and private  
 data could be compromised, The MiniDataCenter Project is a solution allowing you  
@@ -12,21 +11,26 @@ What your need is just a single physical computer, connected to the internet
 via your ISP router. This program will then deploy several preconfigured LXD  
 containers, using Ansible, an automation tool, with the following roles :
 
-Implemented :
-- [x] Certificate Authority
-- [x] DNS Server
-- [x] DHCP Server
+Fully Implemented :
+- [x] Certificate Authority (with Easy-RSA)
+- [x] DNS (with Bind)
+- [x] DHCP (with ISC-DHCP-Server)
+- [x] VPN (with OpenVPN)
+- [x] LDAP (with OpenLDAP)
+- [x] LDAP Web Interface (with LDAP-Account-Manager)
+
+Partially implemented :
+- [x] Reverse Proxy Server (with Nginx)
+- [x] DLNA Server (with Plex)
 
 Coming soon :
-- [ ] Reverse Proxy Server
-- [ ] VPN Server
-- [ ] LDAP Server
-- [ ] LAM (LDAP Account Manager) Server
-- [ ] Cyrus Server (mail)
-- [ ] SMTP Relay Server
+- [ ] Mail Server (with Cyrus)
+- [ ] SMTP Relay Server (with Postfix)
+- [ ] Samba share
+- [ ] MariaDB
+- [ ] Web Storage Server (with Nextcloud)
 
-Quick Install Guide
-===================
+### Quick Install Guide
 
 1. Install your computer / server following this guide :
 [Host Install Guide](docs/host_install_guide.md)
@@ -43,26 +47,17 @@ git clone https://github.com/agrimal/minidatacenter.git /opt/minidc
 /opt/minidc/scripts/bootstrap-minidc.sh
 ```
 
-4. Modify the config.yml file accordingly to your needs
+4. Modify the config.yml file accordingly to your needs and the [doc](docs)
 
-5. Create the containers :
-
-```bash
-/opt/minidc/scripts/create-containers.py
-```
-
-6. Launch the Ansible playbook :
+5. Launch the Ansible playbook :
 
 ```bash
-/opt/minidc/python-venv/bin/ansible-playbook \
-    -i /opt/minidc/scripts/inventory.py \
-    /opt/minidc/playbooks/setup-everything.yml
+deploy_all
 ```
 
 7. Enjoy !
 
-License
-=======
+### License
 
  The MiniDataCenter Project  
  Copyright 2018 Aurélien Grimal

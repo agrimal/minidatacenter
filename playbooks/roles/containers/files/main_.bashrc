@@ -24,4 +24,6 @@ alias ls='ls --color=auto'
 alias ll='ls --color=auto -la'
 alias journalctl='journalctl -o short-iso'
 
+alias grep='grep --color'
+
 source /etc/bash_completion

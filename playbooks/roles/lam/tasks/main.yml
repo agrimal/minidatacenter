@@ -1,15 +1,17 @@
 ---
 - name: Install packages
-  apt:
-    name: "{{ item }}"
-    update_cache: yes
-    cache_valid_time: 3600
-    state: present
-  loop:
+  action: >
+    apt name={{ item }} update_cache=yes cache_valid_time=3600 state=latest
+  with_list:
   - ldap-account-manager
   - ldap-utils
   - ssl-cert
   - rsync
+
+- name: Verify all packages are up-to-date
+  apt:
+    upgrade: yes
+    force_apt_get: yes
 
 - name: clears out the local repository of retrieved package files
   command: apt-get clean warn=false
@@ -100,21 +102,124 @@
     dest: /etc/apache2/mods-available/mpm_prefork.conf
   register: modify_mod_mpm_prefork_task
 
-- name: Reload apache2 systemd service
-  systemd:
-    name: apache2
-    state: reloaded
-  when: a2enmod_task.changed or
-        copy_ca_crt_task.changed or
-        copy_ldap_crt_task.changed or
-        copy_ldap_key_task.changed or
-        a2dissite_000default_task is defined and a2dissite_000default_task.changed or
-        a2ensite_port80redirect_task is defined and a2ensite_port80redirect_task.changed or
-        a2ensite_port443lam_task is defined and a2ensite_port443lam_task.changed or
-        modify_mod_mpm_prefork_task.changed
+#
+# First configuration
+#
+
+- name: Delete parameters in "/var/lib/ldap-account-manager/config/lam.conf"
+  lineinfile:
+    path: /var/lib/ldap-account-manager/config/lam.conf
+    state: absent
+    regexp: '^{{ item }}'
+  with_list:
+    - ServerURL
+    - treesuffix
+    - Admins
+    - defaultLanguage
+    - activeTypes
+    - 'modules: posixAccount_pwdHash'
+    - 'types: suffix_'
+    - 'types: modules_'
+    - 'types: attr_'
+  when: a2enmod_task.changed
+
+- name: Copy /var/lib/ldap-account-manager/config/lam.conf
+  blockinfile:
+    path: /var/lib/ldap-account-manager/config/lam.conf
+    block: |
+      # server address (e.g. ldap://localhost:389 or ldaps://localhost:636)
+      ServerURL: ldap://{{ ldap_url }}:389
+      serverDisplayName: {{ hostvars[ldap_pair]['ldap_organization'] }}
+      # suffix of tree view e.g. dc=yourdomain,dc=org
+      treesuffix: {{ ldap_rootdn }}
+      # list of users who are allowed to use LDAP Account Manager
+      # names have to be seperated by semicolons
+      # e.g. admins: cn=admin,dc=yourdomain,dc=org;cn=root,dc=yourdomain,dc=org
+      Admins: cn=admin,{{ ldap_rootdn }}
+      loginMethod: list
+      defaultLanguage: en_US.utf8
+      useTLS: yes
+      timeZone: {{ local_timezone }}
+      activeTypes: user,group,user_1
+      # Module settings
+      modules: posixAccount_pwdHash: CRYPT-SHA512
+      activeTypes: user,group,user_1
+      # List of active account types.
+      activeTypes: user,group,user_1
+      # Users
+      types: suffix_user: ou={{ hostvars[ldap_pair]['ldap_ou_users'] }},{{ ldap_rootdn }}
+      types: customLabel_user: Users
+      types: modules_user: inetOrgPerson,posixAccount,shadowAccount
+      types: attr_user: #uid;#givenName;#sn;#uidNumber;#gidNumber
+      types: filter_user:
+      types: hidden_user:
+      # Groups
+      types: suffix_group: ou={{ hostvars[ldap_pair]['ldap_ou_groups'] }},{{ ldap_rootdn }}
+      types: customLabel_group: Groups
+      types: modules_group: posixGroup
+      types: attr_group: #cn;#gidNumber;#memberUID;#description
+      types: filter_group:
+      types: hidden_group:
+      # Applications
+      types: suffix_user_1: ou={{ hostvars[ldap_pair]['ldap_ou_applications'] }},{{ ldap_rootdn }}
+      types: customLabel_user_1: Applications
+      types: modules_user_1: account,posixAccount,shadowAccount
+      types: attr_user_1: #uid;#cn
+      types: filter_user_1:
+      types: hidden_user_1:
+    insertafter: '[#]{99}\n'
+  when: a2enmod_task.changed
+
+- name: Be sure the directory "/var/lib/ldap-account-manager/config/profiles/lam" exists
+  file:
+    path: /var/lib/ldap-account-manager/config/profiles/lam
+    state: directory
+    owner: www-data
+    group: root
+    mode: 0755
+  when: a2enmod_task.changed
+
+- name: Create lam "Users" profile
+  lineinfile:
+    path: /var/lib/ldap-account-manager/config/profiles/lam/default.user
+    create: yes
+    owner: www-data
+    group: www-data
+    line: '{{ item }}'
+  with_list:
+  - "profname: default"
+  - "ldap_suffix: ou={{ hostvars[ldap_pair]['ldap_ou_users'] }},{{ ldap_rootdn }}"
+  - "ldap_rdn: uid"
+  when: a2enmod_task.changed
+
+- name: Create lam "Groups" profile
+  lineinfile:
+    path: /var/lib/ldap-account-manager/config/profiles/lam/default.group
+    create: yes
+    owner: www-data
+    group: www-data
+    line: '{{ item }}'
+  with_list:
+  - "profname: default"
+  - "ldap_suffix: ou={{ hostvars[ldap_pair]['ldap_ou_groups'] }},{{ ldap_rootdn }}"
+  - "ldap_rdn: cn"
+  when: a2enmod_task.changed
+
+- name: Create lam "Applications" profile
+  lineinfile:
+    path: /var/lib/ldap-account-manager/config/profiles/lam/default.user_1
+    create: yes
+    owner: www-data
+    group: www-data
+    line: '{{ item }}'
+  with_list:
+  - "profname: default"
+  - "ldap_suffix: ou={{ hostvars[ldap_pair]['ldap_ou_applications'] }},{{ ldap_rootdn }}"
+  - "ldap_rdn: uid"
+  when: a2enmod_task.changed
 
 #
-# Backup / Restore
+# Restore
 #
 
 - name: Check if "/etc/ldap-account-manager/config.cfg" exists in "{{ minidc_working_directory }}/{{ inventory_hostname }}"
@@ -122,19 +227,20 @@
     module: stat
     path: "{{ minidc_working_directory }}/{{ inventory_hostname }}/etc/ldap-account-manager/config.cfg"
   register: config_cfg_on_localhost
+  when: push_config
 
 - name: Check if "/var/lib/ldap-account-manager/config" exists in "{{ minidc_working_directory }}/{{ inventory_hostname }}"
   local_action:
     module: stat
     path: "{{ minidc_working_directory }}/{{ inventory_hostname }}/var/lib/ldap-account-manager/config"
   register: config_dir_on_localhost
-
-# Restore
+  when: push_config
 
 - name: Copy "/etc/ldap-account-manager/config.cfg" from "{{ minidc_working_directory }}/{{ inventory_hostname }}" on localhost to the container
   copy:
     src: "{{ minidc_working_directory }}/{{ inventory_hostname }}/etc/ldap-account-manager/config.cfg"
     dest: /etc/ldap-account-manager/config.cfg
+  register: copy_config_file_from_localhost_task
   when:
   - push_config
   - config_cfg_on_localhost.stat.exists
@@ -146,7 +252,27 @@
     delete: yes
     src: "{{ minidc_working_directory }}/{{ inventory_hostname }}/var/lib/ldap-account-manager/config"
     dest: /var/lib/ldap-account-manager/
-  when: push_config
+  register: copy_config_dir_from_localhost_task
+  when:
+  - push_config
+  - config_dir_on_localhost.stat.exists
+
+# Reload Apache if anything has changed
+
+- name: Reload apache2 systemd service
+  systemd:
+    name: apache2
+    state: reloaded
+  when: a2enmod_task.changed or
+        copy_ca_crt_task.changed or
+        copy_ldap_crt_task.changed or
+        copy_ldap_key_task.changed or
+        a2dissite_000default_task is defined and a2dissite_000default_task.changed or
+        a2ensite_port80redirect_task is defined and a2ensite_port80redirect_task.changed or
+        a2ensite_port443lam_task is defined and a2ensite_port443lam_task.changed or
+        modify_mod_mpm_prefork_task.changed or
+        copy_config_file_from_localhost_task.changed or
+        copy_config_file_from_localhost_task.changed
 
 # Backup
 
