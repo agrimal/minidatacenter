@@ -1,10 +1,77 @@
-# Servers
+
+
+# ldap_servers (default: ldap://localhost/)
+# Specify one or more URI(s) referring to LDAP server(s), e.g. ldaps://10.1.1.2:999/. Multiple servers must be separated by space.
 ldap_servers: ldap://{{ ldap_url }}
 
-# Identity
-ldap_bind_dn: uid=cyrus,ou=applications,{{ ldap_rootdn }}
-ldap_password: cyrus
+# ldap_bind_dn (default: empty)
+# Specify DN (distinguished name) to bind to the LDAP directory.
+# Do not specify this parameter for the anonymous bind.
+ldap_bind_dn: uid={{ cyrus_ldap_account }},ou={{ hostvars[ldap_pair]['ldap_ou_applications'] }},{{ ldap_rootdn }}
+
+# ldap_password (default: empty)
+# Specify the password for ldap_bind_dn or ldap_id if ldap_use_sasl is turned on.
+# Do not specify this parameter for the anonymous bind.
+ldap_password: {{ cyrus_password }}
+
+# ldap_auth_method (default: bind|fastbind)
+# The bind method uses the LDAP bind facility to verify the password.
+# The bind method is not available when ldap_use_sasl is turned on.
+# In that case saslauthd will use fastbind.
+# "bind"
+# bind is the default auth method. When ldap_use_sasl is enabled, 'fastbind' is the default.
+# "custom"
+# The custom method uses userPassword attribute to verify the password.
+# Supported hashes: crypt, md5, smd5, sha and ssha. Cleartext is supported as well.
+# "fastbind"
+# The fastbind method - when ldap_use_sasl is no - does away with the search and an extra anonymous bind in auth_bind, but makes two assumptions:
+# - Expanding the ldap_filter expression gives the user's fully-qualified DN
+# - There is no cost to staying bound as a named user
 ldap_auth_method: bind
 
-# Search
-ldap_search_base: ou=people,{{ ldap_rootdn }}
+# ldap_search_base (default: empty)
+# Specify a starting point for the search: e.g. dc=example,dc=com.
+# Tokens described in ldap_filter can be used for substitution.
+ldap_search_base: ou={{ hostvars[ldap_pair]['ldap_ou_users'] }},{{ ldap_rootdn }}
+
+# ldap_filter (default: uid=%u)
+# Specify a filter. The following tokens can be used in the filter string:
+# %% -> This is replaced by a literal ’%’ character.
+# %u -> %u is replaced by the complete user string.
+# %U -> If the string is an address (%u), %U will be replaced by the local part of that address.
+# %d -> If the string is an address (%u), %d will be replaced by the domain part of that address.
+# Otherwise it will be the same as %r.
+# %1-9 -> If the input key is user@mail.example.com, then %1 is com, %2 is example and %3 is mail.
+# %s -> %s is replaced by the complete service string.
+# %r -> %r is replaced by the complete realm string.
+# %D -> %D is replaced by the complete user DN (available for group checks)
+# The %u token has to be used at minimum for the filter to be useful.
+# If ldap_auth_method is bind, the filter will search for the DN (distinguished name) attribute.
+# Otherwise, the search will look for the ldap_password_attr attribute.
+ldap_filter: uid=%u
+
+# ldap_scope (default: sub)
+# Search scope. Options are either sub, one or base.
+ldap_scope: sub
+
+# ldap_start_tls (default: no)
+# Use StartTLS extended operation.
+# Do not use ldaps: ldap_servers when this option is turned on.
+ldap_start_tls: yes
+
+# ldap_tls_check_peer (default: no)
+# Require and verify server certificate.
+# If this option is yes, you must specify ldap_tls_cacert_file or ldap_tls_cacert_dir.
+ldap_tls_check_peer: yes
+
+# ldap_tls_cacert_file (default: empty)
+# File containing CA (Certificate Authority) certificate(s).
+ldap_tls_cacert_file: {{ ca_cert_dir }}/{{ ca_cert_file }}
+
+# ldap_tls_cert (default: empty)
+# File containing the client certificate.
+ldap_tls_cert: {{ ca_cert_dir }}/{{ cyrus_certificate }}.crt
+
+# ldap_tls_key (default: empty)
+# File containing the private client key.
+ldap_tls_key: {{ ca_private_dir }}/{{ cyrus_certificate }}.key

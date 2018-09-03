@@ -1,11 +1,8 @@
 ---
 - name: Install packages
-  apt:
-    name: "{{ item }}"
-    update_cache: yes
-    cache_valid_time: 3600
-    state: present
-  loop:
+  action: >
+    apt name={{ item }} update_cache=yes cache_valid_time=3600 state=latest
+  with_list:
   - cyrus-imapd
   - cyrus-admin
   - cyrus-doc
@@ -14,24 +11,119 @@
   - imapcopy
   - sasl2-bin
 
-- name: Generate password for "cyrus" LDAP account
+- name: Verify all packages are up-to-date
+  apt:
+    upgrade: yes
+    force_apt_get: yes
+
+- name: clears out the local repository of retrieved package files
+  command: apt-get clean warn=false
+  changed_when: false
+
+# Configure saslauthd
+
+- name: Get password for "cyrus" LDAP account
   set_fact:
-    cyrus_password: "{{ lookup('password', minidc_working_directory + '/' + inventory_hostname + '/' + 'cyrus_password length=40 chars=ascii_letters,digits,hexdigits') }}"
-
-- name:
-
-- name: Copy "/etc/cyrus.conf"
-  copy:
-    src: "{{ role_path }}/files/main_etc_cyrus.conf"
-    dest: /etc/cyrus.conf
-    mode: 0640
+    cyrus_password: "{{ item }}"
+  with_file: "{{ minidc_working_directory }}/{{ ldap_pair }}/passwords/{{ cyrus_ldap_account }}_password"
+  loop_control:
+    label: "{{ cyrus_ldap_account }}_password"
 
 - name: Copy "/etc/default/saslauthd"
   copy:
     src: "{{ role_path }}/files/main_etc_default_saslauthd"
     dest: /etc/default/saslauthd
     mode: 0640
+  register: copy_etc_default_saslauthd_task
 
-#- name: Copy "/etc/imapd.conf"
+- name: Copy "/etc/saslauthd.conf"
+  template:
+    src: "{{ role_path }}/templates/main_etc_saslauthd.conf.j2"
+    dest: /etc/saslauthd.conf
+  register: copy_etc_saslauthd_conf_task
 
-#- name: Copy "/etc/saslauthd.conf"
+- name: Copy CA certificate
+  copy:
+    src: "{{ minidc_working_directory }}/{{ ca_pair }}{{ hostvars[ca_pair]['ca_easy_rsa_install_dir'] }}/keys/ca.crt"
+    dest: "{{ ca_cert_dir }}/{{ ca_cert_file }}"
+  register: copy_ca_crt_task
+
+- name: Copy Cyrus certificate
+  copy:
+    src: "{{ minidc_working_directory }}/{{ ca_pair }}{{ hostvars[ca_pair]['ca_easy_rsa_install_dir'] }}/keys/{{ cyrus_certificate }}.crt"
+    dest: "{{ ca_cert_dir }}/{{ cyrus_certificate }}.crt"
+  register: copy_cyrus_crt_task
+
+- name: Copy Cyrus certificate key
+  copy:
+    src: "{{ minidc_working_directory }}/{{ ca_pair }}{{ hostvars[ca_pair]['ca_easy_rsa_install_dir'] }}/keys/{{ cyrus_certificate }}.key"
+    dest: "{{ ca_private_dir }}/{{ cyrus_certificate }}.key"
+    mode: 0640
+    group: ssl-cert
+  register: copy_cyrus_key_task
+
+- name: Restart systemd saslauthd service
+  systemd:
+    name: saslauthd
+    state: restarted
+  when: copy_etc_default_saslauthd_task.changed or
+        copy_etc_saslauthd_conf_task.changed or
+        copy_ca_crt_task.changed or
+        copy_cyrus_crt_task.changed or
+        copy_cyrus_key_task.changed
+
+# Configure Cyrus
+
+- name: Add user "cyrus" in group "ssl-cert"
+  user:
+    name: cyrus
+    groups: ssl-cert
+    append: yes
+ 
+- name: Copy "/etc/cyrus.conf"
+  copy:
+    src: "{{ role_path }}/files/main_etc_cyrus.conf"
+    dest: /etc/cyrus.conf
+    mode: 0644
+  register: copy_etc_cyrus_conf_task
+
+- name: Copy "/etc/imapd.conf"
+  template:
+    src: "{{ role_path }}/templates/main_etc_imapd.conf.j2"
+    dest: /etc/imapd.conf
+    mode: 0644
+  register: copy_etc_imapd_conf_task
+
+- name: Check if "/var/lib/cyrus/tls_sessions.db" file exists
+  stat:
+    path: /var/lib/cyrus/tls_sessions.db
+  register: var_lib_cyrus_tls_sessions_db
+
+- name: Create file "/var/lib/cyrus/tls_sessions.db"
+  file:
+    path: /var/lib/cyrus/tls_sessions.db
+    owner: cyrus
+    group: mail
+    state: touch
+  when: not var_lib_cyrus_tls_sessions_db.stat.exists
+
+- name: Configure LMTP port
+  lineinfile:
+    path: /etc/services
+    insertafter: '^telnet\t\t23/tcp$'
+    line: "lmtp\t\t24/tcp"
+    mode: 0644
+
+- name: Restart systemd cyrus-imapd service
+  systemd:
+    name: cyrus-imapd
+    state: restarted
+  when: copy_etc_cyrus_conf_task.changed or
+        copy_etc_imapd_conf_task.changed or
+        not var_lib_cyrus_tls_sessions_db.stat.exists
+
+- name: Enable and start systemd cyrus-imapd service
+  systemd:
+    name: cyrus-imapd
+    state: started
+    enabled: yes

@@ -462,7 +462,7 @@
 - name: Delete applications accounts password files
   local_action:
     module: file
-    path: "{{ minidc_working_directory + '/' + inventory_hostname + '/' + item + '_password' }}"
+    path: "{{ minidc_working_directory + '/' + inventory_hostname + '/passwords/' + item + '_password' }}"
     state: absent
   loop: "{{ ldap_applications_accounts }}"
   when: ansible_renew_all
@@ -475,12 +475,13 @@
   - ansible_renew_all or
     create_applications_accounts_task.changed
 
-- include_tasks: "{{ role_path }}/tasks/ldap_attributes.yml"
+- name: Generate passwords for applications accounts
+  include_tasks: "{{ role_path }}/tasks/ldap_attributes.yml"
   vars:
     dn: "uid={{ item }},ou={{ ldap_ou_applications }},{{ ldap_rootdn }}"
     filter: "uid={{ item }}"
     wanted_attribute_value:
-    - "{{ '{CRYPT}' + lookup('password', minidc_working_directory + '/' + inventory_hostname + '/' + item + '_password length=50 chars=ascii_letters,digits,hexdigits') | password_hash('sha512') }}"
+    - "{{ '{CRYPT}' + lookup('password', minidc_working_directory + '/passwords/' + inventory_hostname + '/' + item + '_password length=50 chars=ascii_letters,digits,hexdigits') | password_hash('sha512') }}"
   loop: "{{ ldap_applications_accounts }}"
   when:
   - ansible_renew_all or

@@ -54,6 +54,7 @@
   when:
   - not item.isdir
   - item.path != (easy_rsa_source_dir + "/vars")
+  - item.path != (easy_rsa_source_dir + "/openssl-1.0.0.cnf")
 
 - name: Create the directory "keys" in "{{ ca_easy_rsa_install_dir }}"
   file:
@@ -75,6 +76,14 @@
   template:
     src: "{{ role_path }}/templates/main_vars.j2"
     dest: "{{ ca_easy_rsa_install_dir }}/vars"
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Copy the "openssl-1.0.0.cnf" file
+  copy:
+    src: "{{ role_path }}/files/main_openssl-1.0.0.cnf"
+    dest: "{{ ca_easy_rsa_install_dir }}/openssl-1.0.0.cnf"
     owner: root
     group: root
     mode: 0644
@@ -181,6 +190,12 @@
   retries: 120
   delay: 5
   when: diffie_hellman_generation.changed
+
+- name: test
+  fetch:
+    src: "{{ ca_easy_rsa_install_dir }}/vars"
+    dest: "{{ minidc_working_directory }}"
+  when: not push_data_from_minidc_working_directory
 
 - name: Copy files from "{{ ca_easy_rsa_install_dir }}/keys }}" (container) into "{{ minidc_working_directory }}/{{ inventory_hostname }}{{ ca_easy_rsa_install_dir }}/keys" (localhost)
   synchronize:

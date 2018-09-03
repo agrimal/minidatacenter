@@ -1,7 +1,12 @@
 ---
-- name: Install packages
+- name: Verify all installed packages are up-to-date
+  apt:
+    upgrade: yes
+    force_apt_get: yes
+
+- name: Install or update packages
   action: >
-    apt name={{ item }} update_cache=yes cache_valid_time=3600 state=latest
+    apt name={{ item }} update_cache=yes cache_valid_time=3600 state=latest force_apt_get=yes
   with_list:
   - apt-utils
   - bash-completion
@@ -41,17 +46,15 @@
   - vim
   - tree
   - jq
-
-- name: Verify all packages are up-to-date
-  apt:
-    upgrade: yes
-    force_apt_get: yes
+  - python3-psutil
+  - python3-colorama
+  - needrestart
 
 - name: clears out the local repository of retrieved package files
   command: apt-get clean warn=false
   changed_when: false
 
-- name: Copy "/root/.profile", "/root/.bashrc", "/root/.bash_aliases" and "/root/.vimrc"
+- name: Copy "/root/.profile", "/root/.bashrc" and "/root/.vimrc"
   copy:
     src: "{{ role_path }}/files/main_{{ item }}"
     dest: "/root/{{ item }}"
@@ -61,8 +64,15 @@
   loop:
   - .profile
   - .bashrc
-  - .bash_aliases
   - .vimrc
+
+- name: Copy "/root/.bash_aliases"
+  template:
+    src: "{{ role_path }}/templates/main_.bash_aliases.j2"
+    dest: /root/.bash_aliases
+    owner: root
+    group: root
+    mode: 0644
 
 - name: Clone git repo "https://github.com/nathanaelkane/vim-indent-guides.git" into "/root/.vim" directory
   git:
@@ -114,6 +124,14 @@
     group: root
     mode: 0644
 
+- name: Copy "/etc/profile.d/server_info.py"
+  copy:
+    src: "{{ role_path }}/files/main_server_info.py"
+    dest: /etc/profile.d/server_info.py
+    owner: root
+    group: root
+    mode: 0744
+
 - name: Make a symlink from "/etc/profile.d/server_info.sh" to "/usr/local/sbin/server_info.sh"
   file:
     src: /etc/profile.d/server_info.sh
@@ -134,6 +152,12 @@
   command: netplan apply
   when:
   - configure_network_task.changed
+
+- name: Enable and start lxd systemd service
+  systemd:
+    name: lxd
+    state: started
+    enabled: yes
 
 - name: Verify if LXD profile "default" exists
   command: lxc profile show default

@@ -34,7 +34,7 @@ inventory['_meta'] = {}
 inventory['_meta']['hostvars'] = {}
 
 # We open the config.yml file
-with open(path + '/../config.yml', 'r') as stream:
+with open(path + '/config.yml', 'r') as stream:
     try:
         # We load the config.yml file
         config = yaml.load(stream)

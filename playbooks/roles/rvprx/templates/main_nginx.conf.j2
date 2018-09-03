@@ -1,24 +1,28 @@
-user www-data;
-worker_processes 4;
+user www-data www-data;
+worker_processes auto;
+worker_cpu_affinity auto;
 pid /run/nginx.pid;
 include /etc/nginx/modules-enabled/*.conf;
 
 events {
     worker_connections 512;
-    # multi_accept on;
+    multi_accept on;
 }
 
 stream {
 
-    log_format basic '$time_iso8601 $remote_addr prot:$protocol status:$status sent:$bytes_sent received:$bytes_received duration:$session_time';
+    log_format stream '$time_iso8601 $remote_addr prot:$protocol status:$status sent:$bytes_sent received:$bytes_received duration:$session_time';
 
+{% for block in stream_blocks %}
     server {
-        listen {{ sslh_openvpn_redirect_port }};
+        listen {{ block.listen_ip }}:{{ block.listen_port }};
         proxy_connect_timeout 300s;
         proxy_timeout 300s;
-        proxy_pass {{ vpn_listen_ip }}:{{ vpn_listen_port }};
-        access_log /var/log/nginx/openvpn-access.log basic;
+        proxy_pass {{ block.proxy_pass_ip }}:{{ block.proxy_pass_port }};
+        access_log /var/log/nginx/{{ block.access_log_name }}-access.log stream;
     }
+
+{% endfor %}
 }
 
 http {
@@ -30,25 +34,35 @@ http {
     sendfile on;
     tcp_nopush on;
     tcp_nodelay on;
-    keepalive_timeout 65;
+    keepalive_timeout 60;
     types_hash_max_size 2048;
-    # server_tokens off;
-
-    # server_names_hash_bucket_size 64;
-    # server_name_in_redirect off;
-
+    server_tokens off;
+    server_names_hash_bucket_size 64;
+    server_name_in_redirect off;
     include /etc/nginx/mime.types;
     default_type application/octet-stream;
 
     log_format main '$remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent" "$http_x_forwarded_for"';
 
+    add_header X-Frame-Options SAMEORIGIN;
+    add_header X-Content-Type-Options nosniff;
+    add_header X-XSS-Protection "1; mode=block";
+    add_header Referrer-Policy 'no-referrer';
+    
     ##
     # SSL Settings
     ##
 
-    ssl_protocols TLSv1 TLSv1.1 TLSv1.2; # Dropping SSLv3, ref: POODLE
+    ssl_protocols TLSv1.2 TLSv1.3;
     ssl_prefer_server_ciphers on;
-    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-SHA384;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 10m;
+    ssl_session_tickets off;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    ssl_stapling on;
+    ssl_stapling_verify on;
+    ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
 
     ##
     # Logging Settings
@@ -62,13 +76,12 @@ http {
     ##
 
     gzip on;
-
-    # gzip_vary on;
-    # gzip_proxied any;
-    # gzip_comp_level 6;
-    # gzip_buffers 16 8k;
-    # gzip_http_version 1.1;
-    # gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_buffers 16 8k;
+    gzip_http_version 1.1;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
 
     ##
     # Virtual Host Configs
@@ -77,24 +90,3 @@ http {
     include /etc/nginx/conf.d/*.conf;
     include /etc/nginx/sites-enabled/*;
 }
-
-#mail {
-#   # See sample authentication script at:
-#   # http://wiki.nginx.org/ImapAuthenticateWithApachePhpScript
-#
-#   # auth_http localhost/auth.php;
-#   # pop3_capabilities "TOP" "USER";
-#   # imap_capabilities "IMAP4rev1" "UIDPLUS";
-#
-#   server {
-#       listen     localhost:110;
-#       protocol   pop3;
-#       proxy      on;
-#   }
-#
-#   server {
-#       listen     localhost:143;
-#       protocol   imap;
-#       proxy      on;
-#   }
-#}

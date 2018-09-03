@@ -1,2 +1,2 @@
 /python-venv
-inventory.yml
+*.retry
