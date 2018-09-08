@@ -219,3 +219,16 @@
   systemd:
     name: sys-kernel-config.mount
     masked: yes
+
+################################################################################
+## SYSTEMD DEFAULT-TARGET
+################################################################################
+
+- name: Check which systemd default-target is active
+  command: systemctl get-default
+  register: systemd_default_target
+  changed_when: false
+
+- name: Set systemd default target to "multi-user.target"
+  command: systemctl set-default multi-user.target
+  when: systemd_default_target.stdout != "multi-user.target"

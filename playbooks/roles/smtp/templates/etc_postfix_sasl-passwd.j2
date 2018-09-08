@@ -1,0 +1,8 @@
+###################
+# Ansible Managed #
+# DO NOT EDIT !!! #
+###################
+
+{% for key, value in postfix_conf['sasl_passwd'].items() %}
+{{ key }} {{ value }}
+{% endfor %}

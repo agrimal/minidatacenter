@@ -1,0 +1,8 @@
+###################
+# Ansible Managed #
+# DO NOT EDIT !!! #
+###################
+
+{% for key, value in postfix_conf['main_cf'].items() %}
+{{ key }} = {{ value }}
+{% endfor %}

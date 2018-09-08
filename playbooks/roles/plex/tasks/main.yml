@@ -30,9 +30,6 @@
     path: /etc/systemd/system/plexmediaserver.service
   register: plexmediaserver_unit_file
 
-- debug:
-    var: plexmediaserver_unit_file
-
 - name: Copy "plexmediaserver.service" unit file from "/lib/systemd/system/" to "/etc/systemd/system/"
   copy:
     remote_src: yes

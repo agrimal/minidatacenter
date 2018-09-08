@@ -1,0 +1,7 @@
+START=yes
+DESC="SASL Authentication Daemon"
+NAME="saslauthd"
+MECHANISMS="sasldb"
+MECH_OPTIONS=""
+THREADS=5
+OPTIONS="-c -m /var/spool/postfix/var/run/saslauthd"
