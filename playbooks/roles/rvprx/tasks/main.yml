@@ -257,16 +257,7 @@
 
 - name: Override certbot.service
   copy:
-    content: |
-      [Unit]
-      Description=Certbot
-      Documentation=file:///usr/share/doc/python-certbot-doc/html/index.html
-      Documentation=https://letsencrypt.readthedocs.io/en/latest/
-
-      [Service]
-      Type=oneshot
-      ExecStart=/usr/bin/certbot -q renew --renew-hook "systemctl restart nginx.service"
-      PrivateTmp=true
+    src: "{{ role_path }}/files/main_certbot.service"
     dest: /etc/systemd/system/certbot.service
     owner: root
     group: root
@@ -274,17 +265,7 @@
 
 - name: Override certbot.timer 
   copy:
-    content: |
-      [Unit]
-      Description=Run certbot twice daily
-
-      [Timer]
-      OnCalendar=*-*-* 00,12:00:00
-      RandomizedDelaySec=7200
-      Persistent=true
-
-      [Install]
-      WantedBy=timers.target
+    src: "{{ role_path }}/files/main_certbot.timer"
     dest: /etc/systemd/system/certbot.timer
     owner: root
     group: root
@@ -321,3 +302,91 @@
     src: /etc/nginx
     dest: "{{ minidc_working_directory }}/{{ inventory_hostname }}/etc/"
   when: not push_config
+
+- name: Create a service on the container host to synchronize letsencrypt certificates
+  local_action:
+    module: template
+    src: "{{ role_path }}/templates/sync-certs-from-rvprx@.service.j2"
+    dest: /etc/systemd/system/sync-certs-from-rvprx@.service
+    owner: root
+    group: root
+    mode: 0644
+  run_once: true
+
+- name: Create a timer on the container host to synchronize letsencrypt certificates
+  local_action:
+    module: copy
+    src: "{{ role_path }}/files/main_sync-certs-from-rvprx@.timer"
+    dest: /etc/systemd/system/sync-certs-from-rvprx@.timer
+    owner: root
+    group: root
+    mode: 0644
+  run_once: true
+
+- name: Enable and start sync-certs-from-rvprx@.timer
+  local_action:
+    daemon-reload: yes
+    module: systemd
+    name: "sync-certs-from-rvprx@{{ inventory_hostname }}.timer"
+    state: started
+    enabled: yes
+
+- name: Create a systemd service on localhost to push letsencrypt certificates into containers
+  local_action:
+    module: template
+    src: "{{ role_path }}/templates/sync-certs-CERTIFICATE-to-container@.service.j2"
+    dest: "/etc/systemd/system/sync-certs-{{ item.certificate }}-to-container@.service"
+    owner: root
+    group: root
+    mode: 0644
+  with_list: "{{ synced_certs }}"
+
+- name: Create a systemd timer on localhost to push letsencrypt certificates into containers
+  local_action:
+    module: template
+    src: "{{ role_path }}/templates/sync-certs-CERTIFICATE-to-container@.timer.j2"
+    dest: "/etc/systemd/system/sync-certs-{{ item.certificate }}-to-container@.timer"
+    owner: root
+    group: root
+    mode: 0644
+  with_list: "{{ synced_certs }}"
+
+- name: Enable and start systemd timers to push letsencrypt certificates into containers
+  local_action:
+    daemon-reload: yes
+    module: systemd
+    name: "sync-certs-{{ item.certificate }}-to-container@{{ item.host }}.timer"
+    state: started
+    enabled: yes
+  with_list: "{{ synced_certs }}"
+
+- name: Create a "restart_service@service" to restart other services when certificates are updated
+  copy:
+    src: "{{ role_path }}/files/restart_service@.service"
+    dest: /etc/systemd/system/restart_service@.service
+    owner: root
+    group: root
+    mode: 0644
+  delegate_to: "{{ item.host }}"
+  with_list: "{{ synced_certs }}"
+
+- name: Create a "restart_service@.path" to restart other services when private key is updated
+  template:
+    src: "{{ role_path }}/templates/restart_service@.path.j2"
+    dest: /etc/systemd/system/restart_service@.path
+    owner: root
+    group: root
+    mode: 0644
+  delegate_to: "{{ item.host }}"
+  with_list: "{{ synced_certs }}"
+
+- name: Enable and start restart_service@.path
+  systemd:
+    daemon-reload: yes
+    name: "restart_service@{{ item.1 }}.path"
+    state: started
+    enabled: yes
+  delegate_to: "{{ item.0.host }}"
+  with_subelements:
+  - "{{ synced_certs }}"
+  - restart_services

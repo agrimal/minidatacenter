@@ -5,6 +5,7 @@
   with_list:
   - postfix
   - swaks
+  - rsync
 
 - name: Verify all packages are up-to-date
   apt:
