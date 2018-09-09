@@ -60,19 +60,10 @@
   loop:
   - slapd
   - ldap-utils
-  - ssl-cert
-#  - python3-pip
-#  - libldap2-dev
-#  - libsasl2-dev
 
 - name: clears out the local repository of retrieved package files
   command: apt-get clean warn=false
   changed_when: false
-
-#- name: Install "python-ldap" pip package
-#  pip:
-#    name: python-ldap
-#    version: 3.0.0
 
 - name : Modify "/etc/default/slapd"
   template:
@@ -102,12 +93,14 @@
     src: "{{ minidc_working_directory }}/{{ ca_pair }}/{{ hostvars[ca_pair]['ca_easy_rsa_install_dir'] }}/keys/ca.crt"
     dest: "{{ ca_cert_dir }}/{{ ca_cert_file }}"
   register: copy_ca_crt_task
+  when: not use_letsencrypt_rvprx_cert
 
 - name: Copy LDAP certificate
   copy:
     src: "{{ minidc_working_directory }}/{{ ca_pair }}/{{ hostvars[ca_pair]['ca_easy_rsa_install_dir'] }}/keys/{{ ldap_certificate }}.crt"
     dest: "{{ ca_cert_dir }}/{{ ldap_certificate }}.crt"
   register: copy_ldap_crt_task
+  when: not use_letsencrypt_rvprx_cert
 
 - name: Copy LDAP key
   copy:
@@ -116,6 +109,7 @@
     mode: 0640
     group: ssl-cert
   register: copy_ldap_key_task
+  when: not use_letsencrypt_rvprx_cert
 
 - name: Restart slapd service if configuration has changed
   systemd:
@@ -312,6 +306,17 @@
     attribute: olcTLSCACertificateFile
     wanted_attribute_value:
     - '{{ ca_cert_dir }}/{{ ca_cert_file }}'
+  when: not use_letsencrypt_rvprx_cert
+
+- name: Prepare variables to add 'olcTLSCACertificateFile' attribute for 'cn=config'
+  set_fact:
+    dn: cn=config
+    search_base: cn=config
+    filter: cn=config
+    attribute: olcTLSCACertificateFile
+    wanted_attribute_value:
+    - /etc/ssl/certs/ca-certificates.crt
+  when: use_letsencrypt_rvprx_cert
 
 - include_tasks: '{{ role_path }}/tasks/ldap_attributes.yml'
 
@@ -319,6 +324,13 @@
   set_fact:
     config_olcTLSCertificateFile: "{{ ca_cert_dir }}/{{ ldap_certificate }}.crt"
     config_olcTLSCertificateKeyFile: "{{ ca_private_dir }}/{{ ldap_certificate }}.key"
+  when: not use_letsencrypt_rvprx_cert
+
+- name: Define 'olcTLSCertificateFile' and 'olcTLSCertificateKeyFile' values for 'cn=config'
+  set_fact:
+    config_olcTLSCertificateFile: "{{ ca_cert_dir }}/{{ ldap_certificate }}-fullchain.pem"
+    config_olcTLSCertificateKeyFile: "{{ ca_private_dir }}/{{ ldap_certificate }}-privkey.pem"
+  when: use_letsencrypt_rvprx_cert
 
 - name: Execute ldapsearch to get olcTLSCertificateFile attribute value for "cn=config"
   command: "{{ ldapsearch_command }} -b cn=config '(cn=config)' olcTLSCertificateFile -LLL"
@@ -335,12 +347,10 @@
     current_config_olcTLSCertificateFile: "{{ ldapsearch_config_olcTLSCertificateFile.stdout | regex_replace('\\n', '') | regex_replace('.*olcTLSCertificateFile::? (.*)', '\\1') }}"
     current_config_olcTLSCertificateKeyFile: "{{ ldapsearch_config_olcTLSCertificateKeyFile.stdout | regex_replace('\\n', '') | regex_replace('.*olcTLSCertificateKeyFile::? (.*)', '\\1') }}"
 
-- name: Copy "/srv/slapd/config_{{ item }}.ldif" LDIF files
+- name: Copy "/srv/slapd/config_olcTLS_attributes_add.ldif" LDIF files
   template:
-    src: "{{ role_path }}/templates/main_config_{{ item }}.ldif.j2"
-    dest: /srv/slapd/config_{{ item }}.ldif
-  loop:
-  - olcTLS_attributes_add
+    src: "{{ role_path }}/templates/main_config_olcTLS_attributes_add.ldif.j2"
+    dest: /srv/slapd/config_olcTLS_attributes_add.ldif
   when:
   - "current_config_olcTLSCertificateFile == 'dn: cn=config'"
   - "current_config_olcTLSCertificateKeyFile == 'dn: cn=config'"
@@ -351,33 +361,19 @@
   - "current_config_olcTLSCertificateFile == 'dn: cn=config'"
   - "current_config_olcTLSCertificateKeyFile == 'dn: cn=config'"
 
-- name: Prepare variables to modify 'olcTLSCertificateFile' attribute for 'cn=config'
-  set_fact:
-    dn: cn=config
-    search_base: cn=config
-    filter: cn=config
-    attribute: olcTLSCertificateFile
-    wanted_attribute_value:
-    - "{{ config_olcTLSCertificateFile }}"
-
-- include_tasks: "{{ role_path }}/tasks/ldap_attributes.yml"
+- name: Copy "/srv/slapd/config_olcTLS_attributes_modify.ldif" LDIF files
+  template:
+    src: "{{ role_path }}/templates/main_config_olcTLS_attributes_modify.ldif.j2"
+    dest: /srv/slapd/config_olcTLS_attributes_modify.ldif
   when:
   - "current_config_olcTLSCertificateFile != 'dn: cn=config'"
-  - current_config_olcTLSCertificateFile != config_olcTLSCertificateFile
-
-- name: Prepare variables to modify 'olcTLSCertificateKeyFile' attribute for 'cn=config'
-  set_fact:
-    dn: cn=config
-    search_base: cn=config
-    filter: cn=config
-    attribute: olcTLSCertificateKeyFile
-    wanted_attribute_value:
-    - "{{ config_olcTLSCertificateKeyFile }}"
-
-- include_tasks: "{{ role_path }}/tasks/ldap_attributes.yml"
-  when:
   - "current_config_olcTLSCertificateKeyFile != 'dn: cn=config'"
-  - current_config_olcTLSCertificateKeyFile != config_olcTLSCertificateKeyFile
+
+- name: Modify olcTLSCertificateFile and olcTLSCertificateKeyFile attributes in "cn=config"
+  command: "{{ ldapmodify_command }} -f /srv/slapd/config_olcTLS_attributes_modify.ldif"
+  when:
+  - "current_config_olcTLSCertificateFile != 'dn: cn=config'"
+  - "current_config_olcTLSCertificateKeyFile != 'dn: cn=config'"
 
 - name: Prepare variables to modify 'olcAccess' attribute for 'olcDatabase={0}config,cn=config'
   set_fact:

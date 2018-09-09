@@ -4,8 +4,8 @@
     apt name={{ item }} update_cache=yes cache_valid_time=3600 state=latest
   with_list:
   - postfix
+  - postfix-ldap
   - swaks
-  - rsync
 
 - name: Verify all packages are up-to-date
   apt:
@@ -20,18 +20,34 @@
   template:
     src: "{{ role_path }}/templates/etc_postfix_main.cf.j2" 
     dest: /etc/postfix/main.cf
+    owner: root
+    group: root
+    mode: 0644
   register: modify_etc_postfix_main_cf
+
+- name: Copy file "/etc/postfix/master.cf"
+  copy:
+    src: "{{ role_path }}/files/etc_postfix_master.cf"
+    dest: /etc/postfix/master.cf
+    owner: root
+    group: root
+    mode: 0644
+  register: modify_etc_postfix_master_cf
 
 - name: Reload postfix service
   systemd:
     name: postfix
     state: reloaded
-  when: modify_etc_postfix_main_cf.changed
+  when: modify_etc_postfix_main_cf.changed or
+        modify_etc_postfix_master_cf.changed
 
 - name: Generate file "/etc/postfix/transport-maps"
   template:
     src: "{{ role_path }}/templates/etc_postfix_transport-maps.j2"
     dest: /etc/postfix/transport-maps
+    owner: root
+    group: root
+    mode: 0644
   register: modify_etc_postfix_transport_maps
 
 - name: Postmap file "/etc/postfix/transport-maps"
@@ -42,8 +58,22 @@
   template:
     src: "{{ role_path }}/templates/etc_postfix_sasl-passwd.j2"
     dest: /etc/postfix/sasl-passwd
+    owner: root
+    group: root
+    mode: 0644
   register: modify_etc_postfix_sasl_passwd
   when: postfix_conf.sasl_passwd is defined
+
+- name: Create file "/etc/postfix/sasl/smtpd.conf"
+  copy:
+    content: |
+      pwcheck_method: saslauthd
+      mech_list: PLAIN LOGIN
+    dest: /etc/postfix/sasl/smtpd.conf
+    owner: root
+    group: root
+    mode: 0644
+  when: saslauthd_conf is defined
 
 - name: Postmap file "/etc/postfix/sasl-passwd"
   command : postmap /etc/postfix/sasl-passwd

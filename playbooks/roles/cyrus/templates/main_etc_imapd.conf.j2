@@ -1673,14 +1673,26 @@ tls_prefer_server_ciphers: 1
 #     connects to other servers. This directory must have filenames with the hashed  value  of  the
 #     certificates (see openssl(1)).
 
+{% if use_letsencrypt_rvprx_cert %}
+tls_server_ca_file: /etc/ssl/certs/ca-certificates.crt
+{% else %}
 tls_server_ca_file: {{ ca_cert_dir }}/{{ ca_cert_file }}
+{% endif %}
 #     Path  to  a  file  containing  CA  certificates used to verify certificates offered when this
 #     server connects to other servers.
 
+{% if use_letsencrypt_rvprx_cert %}
+tls_server_cert: {{ ca_cert_dir }}/{{ cyrus_certificate }}-fullchain.pem
+{% else %}
 tls_server_cert: {{ ca_cert_dir }}/{{ cyrus_certificate }}.crt
+{% endif %}
 #     File containing the certificate presented to clients.
 
+{% if use_letsencrypt_rvprx_cert %}
+tls_server_key: {{ ca_private_dir }}/{{ cyrus_certificate }}-privkey.pem
+{% else %}
 tls_server_key: {{ ca_private_dir }}/{{ cyrus_certificate }}.key
+{% endif %}
 #     File containing the private key belonging to the certificate in tls_server_cert.
 
 #tls_sessions_db: twoskip

@@ -1,0 +1,7 @@
+dn: cn=config
+changetype: modify
+replace: olcTLSCertificateFile
+olcTLSCertificateFile: {{ config_olcTLSCertificateFile }}
+-
+replace: olcTLSCertificateKeyFile
+olcTLSCertificateKeyFile: {{ config_olcTLSCertificateKeyFile }}

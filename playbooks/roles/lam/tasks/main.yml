@@ -5,8 +5,6 @@
   with_list:
   - ldap-account-manager
   - ldap-utils
-  - ssl-cert
-  - rsync
 
 - name: Verify all packages are up-to-date
   apt:
@@ -29,12 +27,14 @@
     src: "{{ minidc_working_directory }}/{{ ca_pair }}/{{ hostvars[ca_pair]['ca_easy_rsa_install_dir'] }}/keys/ca.crt"
     dest: /etc/ssl/certs/ca.crt
   register: copy_ca_crt_task
+  when: not use_letsencrypt_rvprx_cert
 
 - name: Copy LAM certificate
   copy:
     src: "{{ minidc_working_directory }}/{{ ca_pair }}/{{ hostvars[ca_pair]['ca_easy_rsa_install_dir'] }}/keys/{{ lam_certificate }}.crt"
     dest: "/etc/ssl/certs/{{ lam_certificate }}.crt"
   register: copy_ldap_crt_task
+  when: not use_letsencrypt_rvprx_cert
 
 - name: Copy LAM key
   copy:
@@ -43,6 +43,7 @@
     mode: 0640
     group: ssl-cert
   register: copy_ldap_key_task
+  when: not use_letsencrypt_rvprx_cert
 
 - name: Enable Apache2 modules
   apache2_module:

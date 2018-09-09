@@ -30,8 +30,6 @@
   - iptables-persistent
   - python3-certbot
   - python3-certbot-nginx
-  - tree
-  - rsync
 
 - name: Verify all packages are up-to-date
   apt:

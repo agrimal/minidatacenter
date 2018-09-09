@@ -8,7 +8,6 @@
     apt name={{ item }} update_cache=yes cache_valid_time=3600 state=latest
   with_list:
   - easy-rsa
-  - rsync
 
 - name: Verify all packages are up-to-date
   apt:

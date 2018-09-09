@@ -3,9 +3,9 @@ Description=Run sync-certs-{{ item.certificate }}-to-container@%i.service once a
 Documentation=https://github.com/agrimal/minidatacenter
 
 [Timer]
-OnCalendar=*-*-* 01:00:00
+OnCalendar=*-*-* *:0/2
 Persistent=true
-RandomizedDelaySec=3500
+RandomizedDelaySec=30
 
 [Install]
 WantedBy=timers.target

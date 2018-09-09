@@ -47,12 +47,14 @@
     src: "{{ minidc_working_directory }}/{{ ca_pair }}{{ hostvars[ca_pair]['ca_easy_rsa_install_dir'] }}/keys/ca.crt"
     dest: "{{ ca_cert_dir }}/{{ ca_cert_file }}"
   register: copy_ca_crt_task
+  when: not use_letsencrypt_rvprx_cert
 
 - name: Copy Cyrus certificate
   copy:
     src: "{{ minidc_working_directory }}/{{ ca_pair }}{{ hostvars[ca_pair]['ca_easy_rsa_install_dir'] }}/keys/{{ cyrus_certificate }}.crt"
     dest: "{{ ca_cert_dir }}/{{ cyrus_certificate }}.crt"
   register: copy_cyrus_crt_task
+  when: not use_letsencrypt_rvprx_cert
 
 - name: Copy Cyrus certificate key
   copy:
@@ -61,6 +63,7 @@
     mode: 0640
     group: ssl-cert
   register: copy_cyrus_key_task
+  when: not use_letsencrypt_rvprx_cert
 
 - name: Restart systemd saslauthd service
   systemd:

@@ -10,16 +10,17 @@
 #               (yes)   (yes)   (no)    (never) (100)
 # ==========================================================================
 smtp      inet  n       -       y       -       -       smtpd
-slow      unix  -       -       n       -       5       smtp 
-          -o syslog_name=postfix-slow 
-          -o smtp_destination_concurrency_limit=3
-          -o slow_destination_rate_delay=1
+  -o syslog_name=postfix/smtp
+slow      unix  -       -       y       -       5       smtp
+  -o syslog_name=postfix/slow
+  -o smtp_destination_concurrency_limit=3
+  -o slow_destination_rate_delay=1
 #smtp      inet  n       -       y       -       1       postscreen
 #smtpd     pass  -       -       y       -       -       smtpd
 #dnsblog   unix  -       -       y       -       0       dnsblog
 #tlsproxy  unix  -       -       y       -       0       tlsproxy
-#submission inet n       -       y       -       -       smtpd
-#  -o syslog_name=postfix/submission
+submission inet n       -       y       -       -       smtpd
+  -o syslog_name=postfix/submission
 #  -o smtpd_tls_security_level=encrypt
 #  -o smtpd_sasl_auth_enable=yes
 #  -o smtpd_tls_auth_only=yes
@@ -122,9 +123,8 @@ ifmail    unix  -       n       n       -       -       pipe
   flags=F user=ftn argv=/usr/lib/ifmail/ifmail -r $nexthop ($recipient)
 bsmtp     unix  -       n       n       -       -       pipe
   flags=Fq. user=bsmtp argv=/usr/lib/bsmtp/bsmtp -t$nexthop -f$sender $recipient
-scalemail-backend unix	-	n	n	-	2	pipe
+scalemail-backend unix  -   n   n   -   2   pipe
   flags=R user=scalemail argv=/usr/lib/scalemail/bin/scalemail-store ${nexthop} ${user} ${extension}
 mailman   unix  -       n       n       -       -       pipe
   flags=FR user=list argv=/usr/lib/mailman/bin/postfix-to-mailman.py
   ${nexthop} ${user}
-
