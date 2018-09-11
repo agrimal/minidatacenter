@@ -32,7 +32,7 @@ ldap_auth_method: bind
 # ldap_search_base (default: empty)
 # Specify a starting point for the search: e.g. dc=example,dc=com.
 # Tokens described in ldap_filter can be used for substitution.
-ldap_search_base: ou={{ hostvars[ldap_pair]['ldap_ou_users'] }},{{ ldap_rootdn }}
+ldap_search_base: {{ ldap_rootdn }}
 
 # ldap_filter (default: uid=%u)
 # Specify a filter. The following tokens can be used in the filter string:
@@ -48,7 +48,7 @@ ldap_search_base: ou={{ hostvars[ldap_pair]['ldap_ou_users'] }},{{ ldap_rootdn }
 # The %u token has to be used at minimum for the filter to be useful.
 # If ldap_auth_method is bind, the filter will search for the DN (distinguished name) attribute.
 # Otherwise, the search will look for the ldap_password_attr attribute.
-ldap_filter: uid=%u
+ldap_filter: (&(uid=%U)(|(ou:dn:={{ hostvars[ldap_pair]['ldap_ou_users'] }})(ou:dn:={{ hostvars[ldap_pair]['ldap_ou_applications'] }})))
 
 # ldap_scope (default: sub)
 # Search scope. Options are either sub, one or base.
@@ -70,8 +70,16 @@ ldap_tls_cacert_file: {{ ca_cert_dir }}/{{ ca_cert_file }}
 
 # ldap_tls_cert (default: empty)
 # File containing the client certificate.
+{% if use_letsencrypt_rvprx_cert %}
+ldap_tls_cert: {{ ca_cert_dir }}/{{ cyrus_certificate }}-fullchain.pem
+{% else %}
 ldap_tls_cert: {{ ca_cert_dir }}/{{ cyrus_certificate }}.crt
+{% endif %}
 
 # ldap_tls_key (default: empty)
 # File containing the private client key.
+{% if use_letsencrypt_rvprx_cert %}
+ldap_tls_key: {{ ca_private_dir }}/{{ cyrus_certificate }}-privkey.pem
+{% else %}
 ldap_tls_key: {{ ca_private_dir }}/{{ cyrus_certificate }}.key
+{% endif %}

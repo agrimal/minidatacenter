@@ -369,11 +369,19 @@
   - "current_config_olcTLSCertificateFile != 'dn: cn=config'"
   - "current_config_olcTLSCertificateKeyFile != 'dn: cn=config'"
 
+- debug:
+    var: current_config_olcTLSCertificateFile
+
+- debug:
+    var: current_config_olcTLSCertificateKeyFile
+
 - name: Modify olcTLSCertificateFile and olcTLSCertificateKeyFile attributes in "cn=config"
   command: "{{ ldapmodify_command }} -f /srv/slapd/config_olcTLS_attributes_modify.ldif"
   when:
   - "current_config_olcTLSCertificateFile != 'dn: cn=config'"
   - "current_config_olcTLSCertificateKeyFile != 'dn: cn=config'"
+  - current_config_olcTLSCertificateFile != config_olcTLSCertificateFile or
+    current_config_olcTLSCertificateKeyFile != config_olcTLSCertificateKeyFile
 
 - name: Prepare variables to modify 'olcAccess' attribute for 'olcDatabase={0}config,cn=config'
   set_fact:
@@ -449,7 +457,7 @@
   vars:
     ldap_rootdn: "ou={{ ldap_ou_applications }},{{ old_ldap_rootdn }}"
     attributes:
-    - "{{ 'userPassword: {CRYPT}' + lookup('password', minidc_working_directory + '/' + inventory_hostname + '/' + rdn_value + '_password length=50 chars=ascii_letters,digits,hexdigits') | password_hash('sha512') }}"
+    - "{{ 'userPassword: {CRYPT}' + lookup('password', minidc_working_directory + '/' + inventory_hostname + '/passwords/' + rdn_value + '_password length=50 chars=ascii_letters,digits,hexdigits') | password_hash('sha512') }}"
   loop: "{{ ldap_applications_accounts }}"
   loop_control:
     loop_var: rdn_value
@@ -477,7 +485,7 @@
     dn: "uid={{ item }},ou={{ ldap_ou_applications }},{{ ldap_rootdn }}"
     filter: "uid={{ item }}"
     wanted_attribute_value:
-    - "{{ '{CRYPT}' + lookup('password', minidc_working_directory + '/passwords/' + inventory_hostname + '/' + item + '_password length=50 chars=ascii_letters,digits,hexdigits') | password_hash('sha512') }}"
+    - "{{ '{CRYPT}' + lookup('password', minidc_working_directory + '/' + inventory_hostname + '/passwords/' + item + '_password length=50 chars=ascii_letters,digits,hexdigits') | password_hash('sha512') }}"
   loop: "{{ ldap_applications_accounts }}"
   when:
   - ansible_renew_all or

@@ -117,16 +117,168 @@
     line: "lmtp\t\t24/tcp"
     mode: 0644
 
+- name: Copy letsencrypt certificate for {{ cyrus_certificate }}
+  copy:
+    src: "{{ minidc_working_directory }}/{{ rvprx_pair }}/etc/letsencrypt/live/{{ cyrus_certificate }}/fullchain.pem"
+    dest: "{{ ca_cert_dir }}/{{ cyrus_certificate }}-fullchain.pem"
+    owner: root
+    group: ssl-cert
+    mode: 0644
+  when: use_letsencrypt_rvprx_cert
+  register: copy_letsencrypt_certificate
+
+- name: Copy letsencrypt certificate key for {{ cyrus_certificate }}
+  copy:
+    src: "{{ minidc_working_directory }}/{{ rvprx_pair }}/etc/letsencrypt/live/{{ cyrus_certificate }}/privkey.pem"
+    dest: "{{ ca_private_dir }}/{{ cyrus_certificate }}-privkey.pem"
+    owner: root
+    group: ssl-cert
+    mode: 0640
+  when: use_letsencrypt_rvprx_cert
+  register: copy_letsencrypt_certificate_key
+
 - name: Restart systemd cyrus-imapd service
   systemd:
     name: cyrus-imapd
     state: restarted
   when: copy_etc_cyrus_conf_task.changed or
         copy_etc_imapd_conf_task.changed or
-        not var_lib_cyrus_tls_sessions_db.stat.exists
+        not var_lib_cyrus_tls_sessions_db.stat.exists or
+        copy_letsencrypt_certificate.changed or
+        copy_letsencrypt_certificate_key.changed
 
 - name: Enable and start systemd cyrus-imapd service
   systemd:
     name: cyrus-imapd
     state: started
     enabled: yes
+
+- name: Delete the useless directories in "/var/spool/cyrus/mail"
+  file:
+    path: /var/spool/cyrus/mail/{{ item }}
+    state: absent
+  with_list: [a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v, w, x, y, z]
+
+- name: Delete the useless directories in "/var/spool/cyrus/new"
+  file:
+    path: /var/spool/cyrus/news/{{ item }}
+    state: absent
+  with_list: [a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v, w, x, y, z]
+
+# Backup and Restore
+
+- fail:
+  when: backup_files and restore_files
+
+# Backup
+
+- name: Create directory to backup files
+  local_action:
+    module: file
+    state: directory
+    recurse: true
+    path: "{{ minidc_working_directory }}/{{ inventory_hostname }}/{{ item }}"
+  with_list:
+  - var/spool/cyrus
+  - var/lib/cyrus
+  when: backup_files
+
+- name: Dump the base mailboxes.db
+  shell: "/usr/lib/cyrus/bin/ctl_mboxlist -d > /tmp/mailboxlist.txt"
+  become: true
+  become_method: su
+  become_user: cyrus
+  changed_when: false
+  when: backup_files
+
+- name: Fetch the dump of mailboxes.db
+  fetch:
+    src: /tmp/mailboxlist.txt
+    dest: "{{ minidc_working_directory }}/{{ inventory_hostname }}/"
+    flat: true
+  when: backup_files
+
+- name: Make a first backup of cyrus files
+  synchronize:
+    mode: pull
+    archive: yes
+    delete: yes
+    src: "/var/{{ item }}/cyrus"
+    dest: "{{ minidc_working_directory }}/{{ inventory_hostname }}/var/{{ item }}/"
+  with_list:
+  - spool
+  - lib
+  when: backup_files
+
+- name: Stop cyrus-imapd service
+  systemd:
+    name: cyrus-imapd
+    state: stopped
+  when: backup_files
+
+- name: Make a second backup of cyrus files while cyrus is stopped
+  synchronize:
+    mode: pull
+    archive: yes
+    delete: yes
+    src: "/var/{{ item }}/cyrus"
+    dest: "{{ minidc_working_directory }}/{{ inventory_hostname }}/var/{{ item }}/"
+  with_list:
+  - spool
+  - lib
+  when: backup_files
+
+- name: Start cyrus-imapd service
+  systemd:
+    name: cyrus-imapd
+    state: started
+  when: backup_files
+
+# Restore
+
+- name: Stop cyrus-imapd service
+  systemd:
+    name: cyrus-imapd
+    state: stopped
+  when: restore_files
+
+- name: Delete files in "/var/lib/cyrus"
+  file:
+    path: /var/lib/cyrus
+    state: '{{ item }}'
+    owner: cyrus
+    group: mail
+  loop:
+  - absent
+  - directory
+  when: restore_files
+
+- name: Delete files in "/var/spool/cyrus"
+  file:
+    path: /var/spool/cyrus
+    state: '{{ item }}'
+    owner: cyrus
+    group: mail
+  loop:
+  - absent
+  - directory
+  when: restore_files
+
+- name: Restore cyrus files while cyrus is stopped
+  synchronize:
+    mode: push
+    archive: yes
+    delete: yes
+    src: "{{ minidc_working_directory }}/{{ inventory_hostname }}/var/{{ item }}/cyrus"
+    dest: "/var/{{ item }}/"
+    rsync_opts: ['--owner', '--group', '--chown=cyrus:mail']
+  with_list:
+  - spool
+  - lib
+  when: restore_files
+
+- name: Start cyrus-imapd service
+  systemd:
+    name: cyrus-imapd
+    state: started
+  when: restore_files

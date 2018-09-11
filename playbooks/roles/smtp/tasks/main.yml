@@ -5,6 +5,7 @@
   with_list:
   - postfix
   - postfix-ldap
+  - ldap-utils
   - swaks
 
 - name: Verify all packages are up-to-date
@@ -34,12 +35,25 @@
     mode: 0644
   register: modify_etc_postfix_master_cf
 
+- name: Generate file "/etc/postfix/ldap-recipient-maps.cf"
+  template:
+    src: "{{ role_path }}/templates/etc_postfix_ldap-recipient-maps.cf.j2" 
+    dest: /etc/postfix/ldap-recipient-maps.cf
+    owner: root
+    group: root
+    mode: 0644
+  register: modify_etc_postfix_ldap_recipient_maps
+  when:
+  - postfix_conf.ldap_recipient_maps is defined
+  - postfix_conf.ldap_recipient_maps
+
 - name: Reload postfix service
   systemd:
     name: postfix
     state: reloaded
   when: modify_etc_postfix_main_cf.changed or
-        modify_etc_postfix_master_cf.changed
+        modify_etc_postfix_master_cf.changed or
+        modify_etc_postfix_ldap_recipient_maps.changed
 
 - name: Generate file "/etc/postfix/transport-maps"
   template:

@@ -1,0 +1,19 @@
+###################
+# Ansible Managed #
+# DO NOT EDIT !!! #
+###################
+
+server_host = ldap://{{ hostvars[postfix_conf.ldap_pair].ldap_certificate }}:389
+timeout = 5
+search_base = ou={{ hostvars[postfix_conf.ldap_pair].ldap_ou_users }},dc={{ hostvars[postfix_conf.ldap_pair].ldap_domain | regex_replace('\.', ',dc=') }}
+query_filter = (mail=%s)
+result_attribute = mail
+bind = yes
+bind_dn = uid={{ postfix_conf.ldap_postfix_user }},ou={{ hostvars[postfix_conf.ldap_pair].ldap_ou_applications }},dc={{ hostvars[postfix_conf.ldap_pair].ldap_domain | regex_replace('\.', ',dc=') }}
+bind_password = {{ lookup('file', minidc_working_directory + '/' + postfix_conf.ldap_pair + '/passwords/' + postfix_conf.ldap_postfix_user + '_password') }}
+start_tls = yes
+tls_require_cert = yes
+tls_ca_cert_file = {{ ca_cert_dir }}/{{ ca_cert_file }}
+tls_cert = {{ ca_cert_dir }}/{{ certificate_name }}{% if use_letsencrypt_rvprx_cert %}-fullchain.pem{% else %}.crt{% endif %}
+
+tls_key = {{ ca_private_dir }}/{{ certificate_name }}{% if use_letsencrypt_rvprx_cert %}-privkey.pem{% else %}.key{% endif %}

@@ -5,7 +5,7 @@
 #     matically appended.  The public addressbook hierarchy will be at the toplevel of  the  shared
 #     namespace.  A user's personal calendar hierarchy will be a child of their Inbox.
 
-admins: cyrus
+admins: {% for account in admin_accounts %}{{ account }} {% endfor %}
 #     The  list  of  userids with administrative rights.  Separate each userid with a space.  Sites
 #     using Kerberos authentication may use separate "admin" instances.
 #
@@ -268,7 +268,7 @@ autocreate_subscribe_folders: Junk|Trash|Sent|Templates|Drafts
 #     A space separated list of users and/or groups that are allowed their INBOX  to  be  automati‐
 #     cally created.
 
-berkeley_cachesize: 8192
+berkeley_cachesize: 65536
 #     Size  (in  kilobytes)  of the shared memory buffer pool (cache) used by the berkeley environ‐
 #     ment.  The minimum allowed value is 20.  The maximum allowed value is 4194303 (4GB).
 
@@ -871,7 +871,7 @@ lmtpsocket: /var/run/cyrus/socket/lmtp
 #maxlogins_per_host: 0
 #     Maximum number of logged in sessions allowed per host, zero means no limit
 
-maxlogins_per_user: 5
+maxlogins_per_user: 4
 #     Maximum number of logged in sessions allowed per user, zero means no limit
 
 maxmessagesize: 102400000
@@ -1306,6 +1306,7 @@ sasl_minimum_layer: 256
 #     The  minimum  SSF  that  the  server will allow a client to negotiate.  A value of 1 requires
 #     integrity protection; any higher value requires some amount of encryption.
 
+sasl_mech_list: LOGIN PLAIN
 #sasl_option: 0
 #     Any SASL option can be set by preceding it with "sasl_".  This file overrides the  SASL  con‐
 #     figuration file.
@@ -1709,7 +1710,7 @@ tls_session_timeout: 120
 #     The length of time (in minutes) that a TLS session will be cached for later reuse.  The maxi‐
 #     mum value is 1440 (24 hours), the default.  A value of 0 will disable session caching.
 
-tls_versions: tls1_2
+#tls_versions: tls1_2
 #     A  list of SSL/TLS versions to not disable. Cyrus IMAP SSL/TLS starts with all protocols, and
 #     substracts protocols not in this list. Newer versions of SSL/TLS will need to be  added  here
 #     to allow them to get disabled.
