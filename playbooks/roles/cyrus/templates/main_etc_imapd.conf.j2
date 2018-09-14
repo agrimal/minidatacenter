@@ -823,7 +823,7 @@ idlesocket: /run/cyrus/socket/idle
 #     addresses  are  changed  to 'X' instead.  This is useful to avoid generating backscatter with
 #     certain MTAs like Postfix or Exim which accept such messages.
 
-lmtpsocket: /var/run/cyrus/socket/lmtp 
+lmtpsocket: /var/spool/postfix/var/run/cyrus/socket/lmtp 
 #     Unix domain socket that lmtpd listens on, used by deliver(8).  This  should  match  the  path
 #     specified in cyrus.conf(5).
 
@@ -1375,7 +1375,7 @@ sasl_pwcheck_method: saslauthd
 #
 #     If all backends are over that limit, this feature is not used anymore.
 
-servername: {{ cyrus_certificate }}
+servername: {{ certificate_name }}
 #     This  is  the hostname visible in the greeting messages of the POP, IMAP and LMTP daemons. If
 #     it is unset, then the result returned from gethostname(2) is used.  This is  also  the  value
 #     used  by  murder  clusters  to identify the host name.  It should be resolvable by DNS to the
@@ -1683,16 +1683,16 @@ tls_server_ca_file: {{ ca_cert_dir }}/{{ ca_cert_file }}
 #     server connects to other servers.
 
 {% if use_letsencrypt_rvprx_cert %}
-tls_server_cert: {{ ca_cert_dir }}/{{ cyrus_certificate }}-fullchain.pem
+tls_server_cert: {{ ca_cert_dir }}/{{ certificate_name }}-fullchain.pem
 {% else %}
-tls_server_cert: {{ ca_cert_dir }}/{{ cyrus_certificate }}.crt
+tls_server_cert: {{ ca_cert_dir }}/{{ certificate_name }}.crt
 {% endif %}
 #     File containing the certificate presented to clients.
 
 {% if use_letsencrypt_rvprx_cert %}
-tls_server_key: {{ ca_private_dir }}/{{ cyrus_certificate }}-privkey.pem
+tls_server_key: {{ ca_private_dir }}/{{ certificate_name }}-privkey.pem
 {% else %}
-tls_server_key: {{ ca_private_dir }}/{{ cyrus_certificate }}.key
+tls_server_key: {{ ca_private_dir }}/{{ certificate_name }}.key
 {% endif %}
 #     File containing the private key belonging to the certificate in tls_server_cert.
 

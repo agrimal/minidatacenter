@@ -22,25 +22,25 @@
 
 # Configure saslauthd
 
-- name: Get password for "cyrus" LDAP account
-  set_fact:
-    cyrus_password: "{{ item }}"
-  with_file: "{{ minidc_working_directory }}/{{ ldap_pair }}/passwords/{{ cyrus_ldap_account }}_password"
-  loop_control:
-    label: "{{ cyrus_ldap_account }}_password"
+#- name: Get password for "cyrus" LDAP account
+#  set_fact:
+#    cyrus_password: "{{ item }}"
+#  with_file: "{{ minidc_working_directory }}/{{ ldap_pair }}/passwords/{{ ldap_cyrus_account }}_password"
+#  loop_control:
+#    label: "{{ ldap_cyrus_account }}_password"
 
-- name: Copy "/etc/default/saslauthd"
-  copy:
-    src: "{{ role_path }}/files/main_etc_default_saslauthd"
-    dest: /etc/default/saslauthd
-    mode: 0640
-  register: copy_etc_default_saslauthd_task
+#- name: Copy "/etc/default/saslauthd"
+#  copy:
+#    src: "{{ role_path }}/files/main_etc_default_saslauthd"
+#    dest: /etc/default/saslauthd
+#    mode: 0640
+#  register: copy_etc_default_saslauthd_task
 
-- name: Copy "/etc/saslauthd.conf"
-  template:
-    src: "{{ role_path }}/templates/main_etc_saslauthd.conf.j2"
-    dest: /etc/saslauthd.conf
-  register: copy_etc_saslauthd_conf_task
+#- name: Copy "/etc/saslauthd.conf"
+#  template:
+#    src: "{{ role_path }}/templates/main_etc_saslauthd.conf.j2"
+#    dest: /etc/saslauthd.conf
+#  register: copy_etc_saslauthd_conf_task
 
 - name: Copy CA certificate
   copy:
@@ -51,30 +51,47 @@
 
 - name: Copy Cyrus certificate
   copy:
-    src: "{{ minidc_working_directory }}/{{ ca_pair }}{{ hostvars[ca_pair]['ca_easy_rsa_install_dir'] }}/keys/{{ cyrus_certificate }}.crt"
-    dest: "{{ ca_cert_dir }}/{{ cyrus_certificate }}.crt"
+    src: "{{ minidc_working_directory }}/{{ ca_pair }}{{ hostvars[ca_pair]['ca_easy_rsa_install_dir'] }}/keys/{{ certificate_name }}.crt"
+    dest: "{{ ca_cert_dir }}/{{ certificate_name }}.crt"
   register: copy_cyrus_crt_task
   when: not use_letsencrypt_rvprx_cert
 
 - name: Copy Cyrus certificate key
   copy:
-    src: "{{ minidc_working_directory }}/{{ ca_pair }}{{ hostvars[ca_pair]['ca_easy_rsa_install_dir'] }}/keys/{{ cyrus_certificate }}.key"
-    dest: "{{ ca_private_dir }}/{{ cyrus_certificate }}.key"
+    src: "{{ minidc_working_directory }}/{{ ca_pair }}{{ hostvars[ca_pair]['ca_easy_rsa_install_dir'] }}/keys/{{ certificate_name }}.key"
+    dest: "{{ ca_private_dir }}/{{ certificate_name }}.key"
     mode: 0640
     group: ssl-cert
   register: copy_cyrus_key_task
   when: not use_letsencrypt_rvprx_cert
 
-- name: Restart systemd saslauthd service
-  systemd:
-    name: saslauthd
-    state: restarted
-  when: copy_etc_default_saslauthd_task.changed or
-        copy_etc_saslauthd_conf_task.changed or
-        copy_ca_crt_task.changed or
-        copy_cyrus_crt_task.changed or
-        copy_cyrus_key_task.changed
+#- name: Restart systemd saslauthd service
+#  systemd:
+#    name: saslauthd
+#    state: restarted
+#  when: copy_etc_default_saslauthd_task.changed or
+#        copy_etc_saslauthd_conf_task.changed or
+#        copy_ca_crt_task.changed or
+#        copy_cyrus_crt_task.changed or
+#        copy_cyrus_key_task.changed
 
+# Configure postfix
+
+- name: Add user "postfix" in group "mail"
+  user:
+    name: postfix
+    groups: mail
+    append: yes
+
+- name: Create directory "/var/spool/postfix/var/run/cyrus/socket"
+  file:
+    path: /var/spool/postfix/var/run/cyrus/socket
+    state: directory
+    recurse: yes
+    owner: cyrus
+    group: mail
+    mode: 0755
+ 
 # Configure Cyrus
 
 - name: Add user "cyrus" in group "ssl-cert"
@@ -82,7 +99,7 @@
     name: cyrus
     groups: ssl-cert
     append: yes
- 
+
 - name: Copy "/etc/cyrus.conf"
   copy:
     src: "{{ role_path }}/files/main_etc_cyrus.conf"
@@ -117,20 +134,20 @@
     line: "lmtp\t\t24/tcp"
     mode: 0644
 
-- name: Copy letsencrypt certificate for {{ cyrus_certificate }}
+- name: Copy letsencrypt certificate for {{ certificate_name }}
   copy:
-    src: "{{ minidc_working_directory }}/{{ rvprx_pair }}/etc/letsencrypt/live/{{ cyrus_certificate }}/fullchain.pem"
-    dest: "{{ ca_cert_dir }}/{{ cyrus_certificate }}-fullchain.pem"
+    src: "{{ minidc_working_directory }}/{{ rvprx_pair }}/etc/letsencrypt/live/{{ certificate_name }}/fullchain.pem"
+    dest: "{{ ca_cert_dir }}/{{ certificate_name }}-fullchain.pem"
     owner: root
     group: ssl-cert
     mode: 0644
   when: use_letsencrypt_rvprx_cert
   register: copy_letsencrypt_certificate
 
-- name: Copy letsencrypt certificate key for {{ cyrus_certificate }}
+- name: Copy letsencrypt certificate key for {{ certificate_name }}
   copy:
-    src: "{{ minidc_working_directory }}/{{ rvprx_pair }}/etc/letsencrypt/live/{{ cyrus_certificate }}/privkey.pem"
-    dest: "{{ ca_private_dir }}/{{ cyrus_certificate }}-privkey.pem"
+    src: "{{ minidc_working_directory }}/{{ rvprx_pair }}/etc/letsencrypt/live/{{ certificate_name }}/privkey.pem"
+    dest: "{{ ca_private_dir }}/{{ certificate_name }}-privkey.pem"
     owner: root
     group: ssl-cert
     mode: 0640

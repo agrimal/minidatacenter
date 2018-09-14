@@ -369,12 +369,6 @@
   - "current_config_olcTLSCertificateFile != 'dn: cn=config'"
   - "current_config_olcTLSCertificateKeyFile != 'dn: cn=config'"
 
-- debug:
-    var: current_config_olcTLSCertificateFile
-
-- debug:
-    var: current_config_olcTLSCertificateKeyFile
-
 - name: Modify olcTLSCertificateFile and olcTLSCertificateKeyFile attributes in "cn=config"
   command: "{{ ldapmodify_command }} -f /srv/slapd/config_olcTLS_attributes_modify.ldif"
   when:

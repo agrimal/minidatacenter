@@ -10,6 +10,19 @@
     state: directory
     recurse: yes
 
+- name: Check the type of "/var/run/saslauthd"
+  stat:
+    path: /var/run/saslauthd
+  register: stat_var_run_saslauthd
+
+- name: Delete directory "/var/run/saslauthd"
+  file:
+    path: /var/run/saslauthd
+    state: absent
+  when:
+  - stat_var_run_saslauthd.stat.isdir is defined
+  - stat_var_run_saslauthd.stat.isdir
+
 - name: Create symlink from "/var/spool/postfix/var/run/saslauthd" to "/var/run/saslauthd"
   file:
     path: /var/run/saslauthd
@@ -31,53 +44,68 @@
     mode: 0644
   register: modify_etc_default_saslauthd
 
+- name: Get password for the saslauthd account
+  set_fact:
+    saslauthd_password: "{{ item }}"
+  with_file: "{{ minidc_working_directory }}/{{ ldap_pair }}/passwords/{{ saslauthd_account }}_password"
+  loop_control:
+    label: "{{ saslauthd_account }}_password"
+
+- name: Copy "/etc/saslauthd.conf"
+  template:
+    src: "{{ role_path }}/templates/etc_saslauthd.conf.j2"
+    dest: /etc/saslauthd.conf
+  register: copy_etc_saslauthd_conf
+
 - name: Restart service saslauthd
   systemd:
     name: saslauthd
     state: restarted
-  when: modify_etc_default_saslauthd.changed
-
-- name: List existing SASL users
-  command: sasldblistusers2
-  register: sasldblistusers2
-  changed_when: false
-
-- name: Prepare the lists of existing and wanted SASL users
-  set_fact:
-    existing_sasl_users: "{{ sasldblistusers2.stdout_lines | map('regex_replace', '^(.*)@.*$', '\\1') | list }}"
-    wanted_sasl_users: "{{ saslauthd_conf | map(attribute='user') | list }}"
-    changed_password_sasl_users: []
-
-- name: Verify authentication for SASL users
-  command: "testsaslauthd -u '{{ item.user }}' -p '{{ item.password }}'"
-  with_list: "{{ saslauthd_conf }}"
-  loop_control:
-    label: "{{ item.user }}"
-  when: item.user in existing_sasl_users
-  register: testsaslauthd_command
-  changed_when: false
-  failed_when: false
-
-- name: Prepare the list for changing users password
-  set_fact:
-    changed_password_sasl_users: "{{ changed_password_sasl_users + [ item.item.user ] }}"
-  with_list: "{{ testsaslauthd_command.results }}"
   when:
-  - item.stdout is defined
-  - "item.stdout != '0: OK \"Success.\"'"
-  loop_control:
-    label: "{{ item.item.user }}"
+  - modify_etc_default_saslauthd.changed or 
+    copy_etc_saslauthd_conf.changed
 
-- name: Delete SASL users
-  command: "saslpasswd2 -d {{ item }}"
-  with_list: "{{ existing_sasl_users }}"
-  when: item not in wanted_sasl_users or
-        item in changed_password_sasl_users
-
-- name: Create SASL users
-  shell: "echo '{{ item.password }}' | saslpasswd2 -c '{{ item.user }}' -p"
-  with_list: "{{ saslauthd_conf }}"
-  loop_control:
-    label: "{{ item.user }}"
-  when: item.user not in existing_sasl_users or
-        item.user in changed_password_sasl_users
+#- name: List existing SASL users
+#  command: sasldblistusers2
+#  register: sasldblistusers2
+#  changed_when: false
+#
+#- name: Prepare the lists of existing and wanted SASL users
+#  set_fact:
+#    existing_sasl_users: "{{ sasldblistusers2.stdout_lines | map('regex_replace', '^(.*)@.*$', '\\1') | list }}"
+#    wanted_sasl_users: "{{ saslauthd_conf | map(attribute='user') | list }}"
+#    changed_password_sasl_users: []
+#
+#- name: Verify authentication for SASL users
+#  command: "testsaslauthd -u '{{ item.user }}' -p '{{ item.password }}'"
+#  with_list: "{{ saslauthd_conf }}"
+#  loop_control:
+#    label: "{{ item.user }}"
+#  when: item.user in existing_sasl_users
+#  register: testsaslauthd_command
+#  changed_when: false
+#  failed_when: false
+#
+#- name: Prepare the list for changing users password
+#  set_fact:
+#    changed_password_sasl_users: "{{ changed_password_sasl_users + [ item.item.user ] }}"
+#  with_list: "{{ testsaslauthd_command.results }}"
+#  when:
+#  - item.stdout is defined
+#  - "item.stdout != '0: OK \"Success.\"'"
+#  loop_control:
+#    label: "{{ item.item.user }}"
+#
+#- name: Delete SASL users
+#  command: "saslpasswd2 -d {{ item }}"
+#  with_list: "{{ existing_sasl_users }}"
+#  when: item not in wanted_sasl_users or
+#        item in changed_password_sasl_users
+#
+#- name: Create SASL users
+#  shell: "echo '{{ item.password }}' | saslpasswd2 -c '{{ item.user }}' -p"
+#  with_list: "{{ saslauthd_conf }}"
+#  loop_control:
+#    label: "{{ item.user }}"
+#  when: item.user not in existing_sasl_users or
+#        item.user in changed_password_sasl_users

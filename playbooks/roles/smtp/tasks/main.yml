@@ -68,6 +68,28 @@
   command : postmap /etc/postfix/transport-maps
   when : modify_etc_postfix_transport_maps.changed
 
+- name: Read LDAP password in "{{ minidc_working_directory }}/{{ ldap_pair }}/passwords"
+  local_action:
+    module: slurp
+    path: "{{ minidc_working_directory }}/{{ ldap_pair }}/passwords/{{ item.value | regex_replace('^(.+?):.*$', '\\1') }}_password"
+  with_dict: "{{ postfix_conf.sasl_passwd }}"
+  register: slurp_ldap_passwords
+  when:
+  - postfix_conf.sasl_passwd is defined
+  - item.value | regex_replace('^.+?:(.*)$', '\\1') == 'ldap'
+  loop_control:
+    label: "{{ item.value | regex_replace('^(.+?):.*$', '\\1') }}"
+
+- name: Convert LDAP passwords
+  set_fact:
+    dict_ldap_passwords: "{{ dict_ldap_passwords | default({}) | combine({ (item.item.value | regex_replace('^(.+?):.*$', '\\1')) : (item.content | b64decode | regex_replace('^(.*)\\n$', '\\1')) }) }}"
+  with_list: "{{ slurp_ldap_passwords.results }}"
+  when:
+  - postfix_conf.sasl_passwd is defined
+  - item.skipped is not defined
+  loop_control:
+    label: "{{ item.item.value | regex_replace('^(.+?):.*$', '\\1') }}"
+
 - name: Generate file "/etc/postfix/sasl-passwd"
   template:
     src: "{{ role_path }}/templates/etc_postfix_sasl-passwd.j2"
@@ -97,3 +119,19 @@
 
 - import_tasks: configure_saslauthd.yml
   when: saslauthd_conf is defined
+
+- name: Generate file "/etc/aliases"
+  template:
+    src: "{{ role_path }}/templates/etc_postfix_aliases.j2"
+    dest: /etc/aliases
+    owner: root
+    group: root
+    mode: 0644
+  register: modify_etc_aliases
+  when: postfix_conf.aliases is defined
+
+- name: Update aliases
+  command: newaliases
+  when:
+  - postfix_conf.aliases is defined
+  - modify_etc_aliases.changed

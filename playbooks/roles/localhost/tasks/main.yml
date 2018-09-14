@@ -1,4 +1,16 @@
 ---
+- name: Configure repositories
+  copy:
+    content: |
+      deb http://archive.ubuntu.com/ubuntu/ bionic main restricted universe multiverse
+      deb http://security.ubuntu.com/ubuntu/ bionic-security main restricted universe multiverse
+      deb http://archive.ubuntu.com/ubuntu/ bionic-updates main restricted universe multiverse
+      deb http://archive.ubuntu.com/ubuntu/ bionic-backports main restricted universe multiverse
+    dest: /etc/apt/sources.list
+    owner: root
+    group: root
+    mode: 0644
+
 - name: Verify all installed packages are up-to-date
   apt:
     upgrade: yes
@@ -109,6 +121,12 @@
       fs.inotify.max_user_watches = 1048576
       vm.max_map_count = 262144
       kernel.dmesg_restrict = 1
+      net.core.netdev_max_backlog = 65536
+  register: modify_sysctl_params
+
+- name: Load new sysctl parameters
+  command: sysctl -p
+  when: modify_sysctl_params.changed
 
 - name: Disable Ubuntu's Message of the Day
   replace:

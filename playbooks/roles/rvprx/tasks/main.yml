@@ -152,9 +152,9 @@
     state: link
   register: enable_vhost_http_to_https_redirect_task
 
-- name: Verify if the directories for letsencrypt domains exist
+- name: Create the directories in "/var/www/..." for each letsencrypt domain
   file:
-    path: "/var/www/{{ item }}"
+    path: "/var/www/{{ item.domains.0 }}"
     state: directory
     owner: www-data
     group: www-data
@@ -169,37 +169,61 @@
   command: certbot register --email {{ letsencrypt.contact_mail }} --agree-tos --no-eff-email
   when: not letsencrypt_account.stat.exists
 
-- name: Verify for each vhost if the certificate exists
+- name: Verify for each wanted certificate if the primary certificate already exists in "/etc/letsencrypt/live/"
   stat:
-    path: "/etc/letsencrypt/live/{{ item }}"
+    path: "/etc/letsencrypt/live/{{ item.domains.0 }}"
   with_list: "{{ letsencrypt.domains }}"
   register: vhost_certificate_dir
 
 - name: Extract values from previous task
-  vars:
-    vhost_certificates_exist: {}
   set_fact:
-    vhost_certificates_exist: "{{ vhost_certificates_exist | combine({ item.item : item.stat.exists }) }}"
+    vhost_certificates_exist: "{{ vhost_certificates_exist | default ({}) | combine({ item.item.domains.0 : item.stat.exists }) }}"
   with_list: "{{ vhost_certificate_dir.results }}"
   loop_control:
-    label: "{{ item.item }} : {{ item.stat.exists }}"
+    label: "{{ item.item.domains.0 }} : {{ item.stat.exists }}"
 
-- name: Verify for each vhost if the file exists
+- name: Verify for each primary certificate already existing if the alternative names are correct
+  command: openssl x509 -in /etc/letsencrypt/live/{{ item.key }}/cert.pem -noout -text
+  with_dict: "{{ vhost_certificates_exist }}"
+  when: item.value
+  register: list_alt_names_command
+  changed_when: false
+
+- name: Create the list of existing primary / alternative names
+  set_fact:
+    list_existing_primary_alternative_names: "{{ list_existing_primary_alternative_names | default([]) + ((item.stdout | regex_replace('(?s)^.*?\\s+(DNS:.+?)\\n.*$', '\\1') | regex_replace('DNS:', '')).split(', ') | map('regex_replace', '^(.*)$', '\\1,' + item.item.key) | list ) }}"
+  with_list: "{{ list_alt_names_command.results }}"
+  when: item.stdout is defined
+  loop_control:
+    label: "{{ item.item.key }}"
+
+- name: Flatten the list of existing primary / alternative names
+  set_fact:
+    dict_existing_primary_alternative_names: "{{ dict_existing_primary_alternative_names | default({}) | combine({ item.split(',').0 : item.split(',').1 }) }}"
+  with_list: "{{ list_existing_primary_alternative_names }}"
+
+- name: Create the list of missing certificates
+  set_fact:
+    list_missing_certificates: "{{ list_missing_certificates | default([]) + [[item.1, item.0.cert_id]] }}"
+  with_subelements:
+  - "{{ letsencrypt.domains }}"
+  - domains
+  when: dict_existing_primary_alternative_names[item.1] is not defined
+
+- name: Verify for each nginx vhost if the file exists in "/etc/nginx/sites-available"
   stat:
     path: "/etc/nginx/sites-available/{{ item.server_name }}"
   with_list: "{{ https_blocks }}"
   register: vhost_files
 
 - name: Extract values from previous task
-  vars:
-    vhost_files_exist: {}
   set_fact:
-    vhost_files_exist: "{{ vhost_files_exist | combine({ item.item.server_name : item.stat.exists }) }}"
+    vhost_files_exist: "{{ vhost_files_exist | default({}) | combine({ item.item.server_name : item.stat.exists }) }}"
   with_list: "{{ vhost_files.results }}"
   loop_control:
     label: "{{ item.item.server_name }} : {{ item.stat.exists }}"
 
-- name: Copy all the vhosts without certificates
+- name: Create all the nginx vhosts that don't already have certificate
   template:
     src: "{{ role_path }}/templates/main_vhost_template_without_certs.j2"
     dest: "/etc/nginx/sites-available/{{ item.server_name }}"
@@ -208,22 +232,10 @@
   with_list: "{{ https_blocks }}"
   when:
   - vhost_certificates_exist[item.server_name] is not defined or
-    not vhost_certificates_exist[item.server_name]
-  - vhost_files_exist[item.server_name] is not defined or
+    not vhost_certificates_exist[item.server_name] or
+    vhost_files_exist[item.server_name] is not defined or
     not vhost_files_exist[item.server_name]
   register: copy_vhosts_without_certs_task
-
-#- name: Copy all the vhosts with certificates
-#  template:
-#    src: "{{ role_path }}/templates/main_vhost_template_with_certs.j2"
-#    dest: "/etc/nginx/sites-available/{{ item.server_name }}"
-#    owner: root
-#    group: root
-#  with_list: "{{ https_blocks }}"
-#  when:
-#  - vhost_certificates_exist[item.server_name] is defined
-#  - vhost_certificates_exist[item.server_name]
-#  register: copy_vhosts_with_certs_task
 
 - name: Enable all the vhosts
   file:
@@ -245,13 +257,35 @@
       enable_vhost_http_to_https_redirect_task.changed or
       copy_vhosts_without_certs_task.changed or
       enable_vhosts_task.changed
-#      copy_vhosts_with_certs_task.changed or
+
+- name: Create dictionary of wanted certificates
+  set_fact:
+    dict_wanted_primary_alternative_names: "{{ dict_wanted_primary_alternative_names | default({}) | combine({ item.1 : (letsencrypt.domains | selectattr('cert_id', 'equalto', item.0.cert_id) | list).0.domains.0 }) }}"
+  with_subelements:
+  - "{{ letsencrypt.domains }}"
+  - domains
 
 - name: Create certificates
-  command: certbot -n --nginx -w /var/www/{{ item }} -d {{ item }}
-  with_list: "{{ letsencrypt.domains }}"
-  when: vhost_certificates_exist[item] is not defined or
-        not vhost_certificates_exist[item]
+  command: certbot --non-interactive --nginx --webroot-path /var/www/{{ dict_wanted_primary_alternative_names[item.0] }} --domain {{ (letsencrypt.domains | selectattr('cert_id', 'equalto', item.1) | list).0.domains | join( ' --domain ') }} --expand
+  with_list: "{{ list_missing_certificates }}"
+  when: list_missing_certificates is defined
+  register: create_certificates
+
+- name: Enable vhost http_to_https_redirect
+  file:
+    src: /etc/nginx/sites-available/http_to_https_redirect
+    dest: /etc/nginx/sites-enabled/http_to_https_redirect
+    owner: root
+    group: root
+    state: link
+  register: enable_vhost_http_to_https_redirect_task
+  when: create_certificates.changed
+
+- name: Reload nginx service
+  systemd:
+    name: nginx
+    state: reloaded
+  when: enable_vhost_http_to_https_redirect_task.changed
 
 - name: Override certbot.service
   copy:
@@ -333,7 +367,7 @@
   local_action:
     module: template
     src: "{{ role_path }}/templates/sync-certs-CERTIFICATE-to-container@.service.j2"
-    dest: "/etc/systemd/system/sync-certs-{{ item.certificate }}-to-container@.service"
+    dest: "/etc/systemd/system/sync-certs-{{ (letsencrypt.domains | selectattr('cert_id', 'equalto', item.cert_id) | list).0.domains.0 }}-to-container@.service"
     owner: root
     group: root
     mode: 0644
@@ -343,7 +377,7 @@
   local_action:
     module: template
     src: "{{ role_path }}/templates/sync-certs-CERTIFICATE-to-container@.timer.j2"
-    dest: "/etc/systemd/system/sync-certs-{{ item.certificate }}-to-container@.timer"
+    dest: "/etc/systemd/system/sync-certs-{{ (letsencrypt.domains | selectattr('cert_id', 'equalto', item.cert_id) | list).0.domains.0 }}-to-container@.timer"
     owner: root
     group: root
     mode: 0644
@@ -353,7 +387,7 @@
   local_action:
     daemon-reload: yes
     module: systemd
-    name: "sync-certs-{{ item.certificate }}-to-container@{{ item.host }}.timer"
+    name: "sync-certs-{{ (letsencrypt.domains | selectattr('cert_id', 'equalto', item.cert_id) | list).0.domains.0 }}-to-container@{{ item.host }}.timer"
     state: started
     enabled: yes
   with_list: "{{ synced_certs }}"

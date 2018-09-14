@@ -4,5 +4,9 @@
 ###################
 
 {% for key, value in postfix_conf['sasl_passwd'].items() %}
+{% if value | regex_replace('^.+?:(.*)$', '\\1') == 'ldap' %}
+{{ key }} {{ value | regex_replace('^(.+?):.*$', '\\1') }}:{{ dict_ldap_passwords[value | regex_replace('^(.+)?:.*$', '\\1')] }}
+{% else %}
 {{ key }} {{ value }}
+{% endif %}
 {% endfor %}

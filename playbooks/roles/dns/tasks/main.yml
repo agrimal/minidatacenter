@@ -288,6 +288,9 @@
   register: dynamic_forward_zones_task
   when: renew_all_secrets
 
+- debug:
+    var: dns_master_ptr_zones
+
 - name: Generate dynamic reverse zone files
   template:
     src: "{{ role_path }}/templates/main_db_reverse.j2"
