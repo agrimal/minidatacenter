@@ -27,3 +27,5 @@ alias journalctl='journalctl -o short-iso'
 alias grep='grep --color'
 
 source /etc/bash_completion
+
+[ -f ~/.bash_aliases ] && source ~/.bash_aliases

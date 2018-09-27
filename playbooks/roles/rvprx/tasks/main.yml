@@ -30,11 +30,13 @@
   - iptables-persistent
   - python3-certbot
   - python3-certbot-nginx
+  failed_when: false
 
 - name: Verify all packages are up-to-date
   apt:
     upgrade: yes
     force_apt_get: yes
+  failed_when: false
 
 - name: clears out the local repository of retrieved package files
   command: apt-get clean warn=false
@@ -223,6 +225,12 @@
   loop_control:
     label: "{{ item.item.server_name }} : {{ item.stat.exists }}"
 
+- debug:
+    var: vhost_certificates_exist
+
+- debug:
+    var: list_missing_certificates
+
 - name: Create all the nginx vhosts that don't already have certificate
   template:
     src: "{{ role_path }}/templates/main_vhost_template_without_certs.j2"
@@ -231,11 +239,29 @@
     group: root
   with_list: "{{ https_blocks }}"
   when:
-  - vhost_certificates_exist[item.server_name] is not defined or
-    not vhost_certificates_exist[item.server_name] or
-    vhost_files_exist[item.server_name] is not defined or
-    not vhost_files_exist[item.server_name]
+  #- vhost_certificates_exist[item.server_name] is not defined or
+  #  not vhost_certificates_exist[item.server_name] or
+  #  vhost_files_exist[item.server_name] is not defined or
+  #  not vhost_files_exist[item.server_name]
+  - list_missing_certificates is defined
+  - item.server_name in list_missing_certificates
   register: copy_vhosts_without_certs_task
+
+- name: Create all the nginx vhosts that already have certificate
+  template:
+    src: "{{ role_path }}/templates/main_vhost_template_with_certs.j2"
+    dest: "/etc/nginx/sites-available/{{ item.server_name }}"
+    owner: root
+    group: root
+  with_list: "{{ https_blocks }}"
+  when:
+  #- vhost_certificates_exist[item.server_name] is not defined or
+  #  not vhost_certificates_exist[item.server_name] or
+  #  vhost_files_exist[item.server_name] is not defined or
+  #  not vhost_files_exist[item.server_name]
+  - list_missing_certificates is not defined or
+    item.server_name not in list_missing_certificates
+  register: copy_vhosts_with_certs_task
 
 - name: Enable all the vhosts
   file:
@@ -256,7 +282,8 @@
       copy_vhost_http_to_https_redirect_task.changed or
       enable_vhost_http_to_https_redirect_task.changed or
       copy_vhosts_without_certs_task.changed or
-      enable_vhosts_task.changed
+      enable_vhosts_task.changed or
+      copy_vhosts_with_certs_task.changed
 
 - name: Create dictionary of wanted certificates
   set_fact:

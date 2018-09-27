@@ -1,0 +1,91 @@
+{
+  /* *********************  Main SOGo configuration file  **********************
+   *                                                                           *
+   * Since the content of this file is a dictionary in OpenStep plist format,  *
+   * the curly braces enclosing the body of the configuration are mandatory.   *
+   * See the Installation Guide for details on the format.                     *
+   *                                                                           *
+   * C and C++ style comments are supported.                                   *
+   *                                                                           *
+   * This example configuration contains only a subset of all available        *
+   * configuration parameters. Please see the installation guide more details. *
+   *                                                                           *
+   * ~sogo/GNUstep/Defaults/.GNUstepDefaults has precedence over this file,    *
+   * make sure to move it away to avoid unwanted parameter overrides.          *
+   *                                                                           *
+   * **************************************************************************/
+
+  // LDAP DIRECTORY
+  SOGoUserSources = (
+    {
+      type = ldap;
+      CNFieldName = cn;
+      UIDFieldName = uid;
+      IDFieldName = uid;
+      baseDN = "ou={{ hostvars[ldap_pair]['ldap_ou_users'] }},{{ ldap_rootdn }}";
+      bindAsCurrentUser = YES;
+      canAuthenticate = YES;
+      displayName = "Users";
+      hostname = ldaps://{{ ldap_url }};
+      id = users;
+      isAddressBook = NO;
+      userPasswordAlgorithm = crypt;
+    }
+  );
+
+  // MARIADB DATABASE
+  SOGoProfileURL = "mysql://sogo:{{ ldap_password }}@{{ mysql_server }}:{{ mysql_port }}/sogo/sogo_user_profile";
+  OCSFolderInfoURL = "mysql://sogo:{{ ldap_password }}@{{ mysql_server }}:{{ mysql_port }}/sogo/sogo_folder_info";
+  OCSSessionsFolderURL = "mysql://sogo:{{ ldap_password }}@{{ mysql_server }}:{{ mysql_port }}/sogo/sogo_sessions_folder";
+  OCSEMailAlarmsFolderURL = "mysql://sogo:{{ ldap_password }}@{{ mysql_server }}:{{ mysql_port }}/sogo/sogo_alarms_folder";
+  OCSStoreURL = "mysql://sogo:{{ ldap_password }}@{{ mysql_server }}:{{ mysql_port }}/sogo/sogo_store";
+  OCSAclURL = "mysql://sogo:{{ ldap_password }}@{{ mysql_server }}:{{ mysql_port }}/sogo/sogo_acl";
+  OCSCacheFolderURL = "mysql://sogo:{{ ldap_password }}@{{ mysql_server }}:{{ mysql_port }}/sogo/sogo_cache_folder";
+  MySQL4Encoding = "utf8mb4";
+
+  // SMTP
+  SOGoMailingMechanism = smtp;
+  SOGoSMTPServer = 127.0.0.1;
+  SOGoForceExternalLoginWithEmail = NO;
+
+  // IMAP
+  SOGoIMAPServer = "imaps://{{ imap_server }}:993";
+  SOGoSieveServer = "sieve://{{ imap_server }}:4190/?tls=YES";
+  SOGoSieveFolderEncoding = "UTF-8";
+  SOGoMailShowSubscribedFoldersOnly = YES;
+  SOGoIMAPAclConformsToIMAPExt = YES;
+  SOGoSentFolderName = INBOX/Sent;
+  SOGoDraftsFolderName = INBOX/Drafts;
+  SOGoTrashFolderName = INBOX/Trash;
+  SOGoJunkFolderName = INBOX/Junk;
+
+  // WEBUI
+  SOGoPageTitle = "{{ sogo_page_title }}";
+  SOGoLoginModule = Mail;
+  SOGoMailAddOutgoingAddresses = YES;
+  SOGoVacationEnabled = YES;
+  SOGoSieveScriptsEnabled = YES;
+  SOGoRefreshViewCheck = every_5_minutes;
+  SOGoFirstDayOfWeek = 1;
+  SOGoEnableEMailAlarms = YES;
+  
+  // GENERAL
+  WOLogFile = -; // Log to console
+  WOMaxUploadSize = 20480; // File attachment size limit (in kB)
+  SOGoMaximumMessageSizeLimit = 25600; // (in kB)
+  SOGoMailDomain = {{ imap_domain }};
+  SOGoTimeZone = {{ local_timezone }};
+  SOGoAppointmentSendEMailNotifications = YES;
+  SOGoSuperUsernames = (admin);
+  SOGoLanguage = {{ sogo_default_language }};
+  SOGoCacheCleanupInterval = 1800;
+  SOGoPasswordChangeEnabled = YES;
+  SOGoMaximumFailedLoginCount = 3;
+  SOGoMaximumFailedLoginInterval = 120;
+  SOGoFailedLoginBlockInterval = 900;
+  SOGoMaximumMessageSubmissionCount = 10;
+  SOGoMaximumRecipientCount = 25;
+  SOGoMaximumSubmissionInterval = 600;
+  SOGoMessageSubmissionBlockInterval = 900;
+  SxVMemLimit = 512;
+}

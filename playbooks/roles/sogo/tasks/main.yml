@@ -1,0 +1,116 @@
+---
+- name: Be sure the directory "/etc/nginx/sites-available" exists
+  file:
+    path: "{{ item }}"
+    owner: root
+    group: root
+    mode: 0755
+    state: directory
+  with_items:
+  - '/etc/nginx'
+  - '/etc/nginx/sites-available'
+
+# Prevent nginx from trying to listen on IPv6 and avoid error on APT module
+- name: Copy "/etc/nginx/sites-available/default"
+  copy:
+    src: "{{ role_path }}/files/etc_nginx_sites-available_default"
+    dest: /etc/nginx/sites-available/default
+    owner: root
+    group: root
+    mode: 0644
+  register: modify_vhost_default
+
+- name: Install packages
+  action: apt name={{ item }} update_cache=yes cache_valid_time=3600 state=latest
+  with_list:
+  - gnupg
+  - apt-transport-https
+  - nginx
+  - libmariadbd18
+  - libmariadbclient18
+
+- name: Disable default virtual host
+  file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+
+- name: Generate virtual host "/etc/nginx/sites-available/sogo"
+  template:
+    src: "{{ role_path }}/templates/etc_nginx_sites-available_sogo.j2"
+    dest: /etc/nginx/sites-available/sogo
+    owner: root
+    group: root
+    mode: 0644
+  register: modify_vhost_sogo
+
+- name: Activate virtual host sogo
+  file:
+    state: link
+    path: /etc/nginx/sites-enabled/sogo
+    src: /etc/nginx/sites-available/sogo
+  register: activate_vhost_sogo
+
+- name: Restart nginx
+  systemd:
+    name: nginx
+    state: restarted
+  when: modify_vhost_sogo.changed or
+        activate_vhost_sogo.changed or
+        modify_vhost_default.changed
+
+- name: Create directory "/usr/lib/mysql/plugin"
+  file:
+    path: /usr/lib/mysql/plugin
+    state: directory
+
+- name: Create symbolic link from "/usr/lib/x86_64-linux-gnu/mariadb18/plugin/dialog.so" to "/usr/lib/mysql/plugin/dialog.so"
+  file:
+    path: /usr/lib/mysql/plugin/dialog.so
+    state: link
+    src: /usr/lib/x86_64-linux-gnu/mariadb18/plugin/dialog.so 
+
+- name: Add Inverse GPG key
+  apt_key:
+    keyserver: keys.gnupg.net
+    id: '0x810273c4'
+
+- name: Add Inverse APT repository
+  apt_repository:
+    repo: deb https://packages.inverse.ca/SOGo/nightly/4/ubuntu/ bionic bionic
+    state: present
+
+- name: Install "sogo" package
+  apt:
+    name: sogo
+    state: present
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Get password of {{ ldap_account }} account in LDAP
+  set_fact:
+    ldap_password: "{{ item }}"
+  with_file: "{{ minidc_working_directory }}/{{ ldap_pair }}/passwords/{{ ldap_account }}_password"
+  loop_control:
+    label: "{{ ldap_account }}_password"
+  no_log: true
+
+- name: Copy "/etc/sogo/sogo.conf" file
+  template:
+    src: "{{ role_path }}/templates/etc_sogo_sogo.conf.j2"
+    dest: /etc/sogo/sogo.conf
+    owner: sogo
+    group: root
+    mode: 0600
+  register: copy_sogo_conf
+
+- name: Restart sogo systemd service
+  systemd:
+    name: sogo
+    state: restarted
+  when: copy_sogo_conf.changed
+
+- name: Setup CRON job for alarm reminders every minute
+  cron:
+    user: sogo
+    name: EMailAlarms
+    job: '/usr/sbin/sogo-ealarms-notify > /dev/null'

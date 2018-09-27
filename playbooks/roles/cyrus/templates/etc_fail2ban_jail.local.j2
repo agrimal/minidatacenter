@@ -1,0 +1,16 @@
+[DEFAULT]
+ignoreip = 127.0.0.0/8
+bantime  = 1h
+findtime  = 4h
+maxretry = 3
+destemail = {{ fail2ban_dest_mail }}
+sender = {{ fail2ban_sender_mail }}
+
+[sshd]
+enabled = false
+
+[cyrus-imap]
+journalmatch = _SYSTEMD_UNIT=cyrus-imapd.service
+enabled = true
+port = imap,imaps
+backend = systemd

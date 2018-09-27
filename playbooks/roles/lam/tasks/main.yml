@@ -5,6 +5,7 @@
   with_list:
   - ldap-account-manager
   - ldap-utils
+  - php7.2-imap
 
 - name: Verify all packages are up-to-date
   apt:
@@ -31,19 +32,35 @@
 
 - name: Copy LAM certificate
   copy:
-    src: "{{ minidc_working_directory }}/{{ ca_pair }}/{{ hostvars[ca_pair]['ca_easy_rsa_install_dir'] }}/keys/{{ lam_certificate }}.crt"
-    dest: "/etc/ssl/certs/{{ lam_certificate }}.crt"
-  register: copy_ldap_crt_task
+    src: "{{ minidc_working_directory }}/{{ ca_pair }}/{{ hostvars[ca_pair]['ca_easy_rsa_install_dir'] }}/keys/{{ certificate_name }}.crt"
+    dest: "/etc/ssl/certs/{{ certificate_name }}.crt"
+  register: copy_lam_crt_task
   when: not use_letsencrypt_rvprx_cert
 
 - name: Copy LAM key
   copy:
-    src: "{{ minidc_working_directory }}/{{ ca_pair }}/{{ hostvars[ca_pair]['ca_easy_rsa_install_dir'] }}/keys/{{ lam_certificate }}.key"
-    dest: "/etc/ssl/private/{{ lam_certificate }}.key"
+    src: "{{ minidc_working_directory }}/{{ ca_pair }}/{{ hostvars[ca_pair]['ca_easy_rsa_install_dir'] }}/keys/{{ certificate_name }}.key"
+    dest: "/etc/ssl/private/{{ certificate_name }}.key"
     mode: 0640
     group: ssl-cert
-  register: copy_ldap_key_task
+  register: copy_lam_key_task
   when: not use_letsencrypt_rvprx_cert
+
+- name: Copy LAM certificate
+  copy:
+    src: "{{ minidc_working_directory }}/{{ rvprx_pair }}/etc/letsencrypt/live/{{ certificate_name }}/fullchain.pem"
+    dest: "/etc/ssl/certs/{{ certificate_name }}-fullchain.pem"
+  register: copy_lam_crt_task
+  when: use_letsencrypt_rvprx_cert
+
+- name: Copy LAM key
+  copy:
+    src: "{{ minidc_working_directory }}/{{ rvprx_pair }}/etc/letsencrypt/live/{{ certificate_name }}/privkey.pem"
+    dest: "/etc/ssl/private/{{ certificate_name }}-privkey.pem"
+    mode: 0640
+    group: ssl-cert
+  register: copy_lam_key_task
+  when: use_letsencrypt_rvprx_cert
 
 - name: Enable Apache2 modules
   apache2_module:
@@ -150,7 +167,7 @@
       # Users
       types: suffix_user: ou={{ hostvars[ldap_pair]['ldap_ou_users'] }},{{ ldap_rootdn }}
       types: customLabel_user: Users
-      types: modules_user: inetOrgPerson,posixAccount,shadowAccount
+      types: modules_user: inetSweetOrgPerson,posixAccount,shadowAccount,imapSweetAccess
       types: attr_user: #uid;#givenName;#sn;#uidNumber;#gidNumber
       types: filter_user:
       types: hidden_user:
@@ -170,6 +187,40 @@
       types: hidden_user_1:
     insertafter: '[#]{99}\n'
   when: a2enmod_task.changed
+
+- name: Read content of file "/usr/share/ldap-account-manager/lib/modules/inetOrgPerson.inc"
+  slurp:
+    src: /usr/share/ldap-account-manager/lib/modules/inetOrgPerson.inc
+  register: inetOrgPerson_slurped
+
+- name: Create content for file "/usr/share/ldap-account-manager/lib/modules/inetSweetOrgPerson.inc"
+  set_fact:
+    inetSweetOrgPerson_content: "{{ inetOrgPerson_slurped.content | b64decode | regex_replace('inetOrgPerson', 'inetSweetOrgPerson') }}"
+
+- name: Create file "/usr/share/ldap-account-manager/lib/modules/inetSweetOrgPerson.inc"
+  copy:
+    content: "{{ inetSweetOrgPerson_content }}"
+    dest: /usr/share/ldap-account-manager/lib/modules/inetSweetOrgPerson.inc
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Read content of file "/usr/share/ldap-account-manager/lib/modules/imapAccess.inc"
+  slurp:
+    src: /usr/share/ldap-account-manager/lib/modules/imapAccess.inc
+  register: imapAccess_slurped
+
+- name: Create content for file "/usr/share/ldap-account-manager/lib/modules/imapSweetAccess.inc"
+  set_fact:
+    imapSweetAccess_content: "{{ imapAccess_slurped.content | b64decode | regex_replace('inetOrgPerson', 'inetSweetOrgPerson') | regex_replace('imapAccess', 'imapSweetAccess') }}"
+
+- name: Create file "/usr/share/ldap-account-manager/lib/modules/imapSweetAccess.inc"
+  copy:
+    content: "{{ imapSweetAccess_content }}"
+    dest: /usr/share/ldap-account-manager/lib/modules/imapSweetAccess.inc
+    owner: root
+    group: root
+    mode: 0644
 
 - name: Be sure the directory "/var/lib/ldap-account-manager/config/profiles/lam" exists
   file:
@@ -266,8 +317,8 @@
     state: reloaded
   when: a2enmod_task.changed or
         copy_ca_crt_task.changed or
-        copy_ldap_crt_task.changed or
-        copy_ldap_key_task.changed or
+        copy_lam_crt_task.changed or
+        copy_lam_key_task.changed or
         a2dissite_000default_task is defined and a2dissite_000default_task.changed or
         a2ensite_port80redirect_task is defined and a2ensite_port80redirect_task.changed or
         a2ensite_port443lam_task is defined and a2ensite_port443lam_task.changed or

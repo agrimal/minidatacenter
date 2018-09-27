@@ -7,12 +7,12 @@ ldap_servers: ldap://{{ ldap_url }}:389
 # ldap_bind_dn (default: empty)
 # Specify DN (distinguished name) to bind to the LDAP directory.
 # Do not specify this parameter for the anonymous bind.
-ldap_bind_dn: uid={{ saslauthd_account }},ou={{ hostvars[ldap_pair]['ldap_ou_applications'] }},{{ ldap_rootdn }}
+ldap_bind_dn: uid={{ ldap_account }},ou={{ hostvars[ldap_pair]['ldap_ou_applications'] }},{{ ldap_rootdn }}
 
 # ldap_password (default: empty)
 # Specify the password for ldap_bind_dn or ldap_id if ldap_use_sasl is turned on.
 # Do not specify this parameter for the anonymous bind.
-ldap_password: {{ saslauthd_password }}
+ldap_password: {{ ldap_password }}
 
 # ldap_auth_method (default: bind|fastbind)
 # The bind method uses the LDAP bind facility to verify the password.

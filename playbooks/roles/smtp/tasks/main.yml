@@ -1,12 +1,20 @@
 ---
-- name: Install packages
+- name: Install postfix packages
   action: >
     apt name={{ item }} update_cache=yes cache_valid_time=3600 state=latest
   with_list:
   - postfix
+  - swaks
+
+- name: Install LDAP relative packages
+  action: >
+    apt name={{ item }} update_cache=yes cache_valid_time=3600 state=latest
+  with_list:
   - postfix-ldap
   - ldap-utils
-  - swaks
+  when:
+  - postfix_conf.ldap_recipient_maps is defined
+  - postfix_conf.ldap_recipient_maps
 
 - name: Verify all packages are up-to-date
   apt:
@@ -47,13 +55,31 @@
   - postfix_conf.ldap_recipient_maps is defined
   - postfix_conf.ldap_recipient_maps
 
+- name: Copy LDAP certificate
+  copy:
+    src: "{{ minidc_working_directory }}/{{ rvprx_pair }}/etc/letsencrypt/live/{{ certificate_name }}/fullchain.pem"
+    dest: "{{ ca_cert_dir }}/{{ certificate_name }}-fullchain.pem"
+  register: copy_ldap_crt_task
+  when: use_letsencrypt_rvprx_cert
+
+- name: Copy LDAP key
+  copy:
+    src: "{{ minidc_working_directory }}/{{ rvprx_pair }}/etc/letsencrypt/live/{{ certificate_name }}/privkey.pem"
+    dest: "{{ ca_private_dir }}/{{ certificate_name }}-privkey.pem"
+    mode: 0640
+    group: ssl-cert
+  register: copy_ldap_key_task
+  when: use_letsencrypt_rvprx_cert
+
 - name: Reload postfix service
   systemd:
     name: postfix
     state: reloaded
   when: modify_etc_postfix_main_cf.changed or
         modify_etc_postfix_master_cf.changed or
-        modify_etc_postfix_ldap_recipient_maps.changed
+        modify_etc_postfix_ldap_recipient_maps.changed or
+        copy_ldap_crt_task.changed
+        or copy_ldap_key_task.changed
 
 - name: Generate file "/etc/postfix/transport-maps"
   template:
@@ -63,10 +89,13 @@
     group: root
     mode: 0644
   register: modify_etc_postfix_transport_maps
+  when: postfix_conf.transport_maps is defined
 
 - name: Postmap file "/etc/postfix/transport-maps"
-  command : postmap /etc/postfix/transport-maps
-  when : modify_etc_postfix_transport_maps.changed
+  command: postmap /etc/postfix/transport-maps
+  when:
+  - postfix_conf.transport_maps is defined
+  - modify_etc_postfix_transport_maps.changed
 
 - name: Read LDAP password in "{{ minidc_working_directory }}/{{ ldap_pair }}/passwords"
   local_action:
@@ -117,8 +146,10 @@
   - postfix_conf.sasl_passwd is defined
   - modify_etc_postfix_sasl_passwd.changed
 
-- import_tasks: configure_saslauthd.yml
-  when: saslauthd_conf is defined
+- include_tasks: configure_saslauthd.yml
+  when:
+  - saslauthd_conf is defined
+  - saslauthd_conf
 
 - name: Generate file "/etc/aliases"
   template:
@@ -135,3 +166,27 @@
   when:
   - postfix_conf.aliases is defined
   - modify_etc_aliases.changed
+
+- name: Generate file "/etc/postfix/super-users"
+  template:
+    src: "{{ role_path }}/templates/etc_postfix_super-users.j2"
+    dest: /etc/postfix/super-users
+    owner: root
+    group: root
+    mode: 0644
+  register: modify_etc_postfix_super_users
+  when: postfix_conf.super_users is defined
+
+- name: Postmap file "/etc/postfix/super-users"
+  command: postmap /etc/postfix/super-users
+  when:
+  - postfix_conf.super_users is defined
+  - modify_etc_postfix_super_users.changed
+- name: Be sure postfix user can access private key
+  file:
+    path: "{{ ca_private_dir }}"
+    mode: 0755
+
+
+
+# TODO Get the letsencrypt certificates from working dir

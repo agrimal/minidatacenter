@@ -1,0 +1,8 @@
+###################
+# Ansible Managed #
+# DO NOT EDIT !!! #
+###################
+
+{% for user in postfix_conf.super_users %}
+{{ user }}@{{ postfix_conf.main_cf.mydomain }} OK
+{% endfor %}

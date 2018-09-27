@@ -10,6 +10,7 @@
   - cyrus-caldav
   - imapcopy
   - sasl2-bin
+  - fail2ban
 
 - name: Verify all packages are up-to-date
   apt:
@@ -19,28 +20,6 @@
 - name: clears out the local repository of retrieved package files
   command: apt-get clean warn=false
   changed_when: false
-
-# Configure saslauthd
-
-#- name: Get password for "cyrus" LDAP account
-#  set_fact:
-#    cyrus_password: "{{ item }}"
-#  with_file: "{{ minidc_working_directory }}/{{ ldap_pair }}/passwords/{{ ldap_cyrus_account }}_password"
-#  loop_control:
-#    label: "{{ ldap_cyrus_account }}_password"
-
-#- name: Copy "/etc/default/saslauthd"
-#  copy:
-#    src: "{{ role_path }}/files/main_etc_default_saslauthd"
-#    dest: /etc/default/saslauthd
-#    mode: 0640
-#  register: copy_etc_default_saslauthd_task
-
-#- name: Copy "/etc/saslauthd.conf"
-#  template:
-#    src: "{{ role_path }}/templates/main_etc_saslauthd.conf.j2"
-#    dest: /etc/saslauthd.conf
-#  register: copy_etc_saslauthd_conf_task
 
 - name: Copy CA certificate
   copy:
@@ -65,32 +44,22 @@
   register: copy_cyrus_key_task
   when: not use_letsencrypt_rvprx_cert
 
-#- name: Restart systemd saslauthd service
-#  systemd:
-#    name: saslauthd
-#    state: restarted
-#  when: copy_etc_default_saslauthd_task.changed or
-#        copy_etc_saslauthd_conf_task.changed or
-#        copy_ca_crt_task.changed or
-#        copy_cyrus_crt_task.changed or
-#        copy_cyrus_key_task.changed
-
-# Configure postfix
-
 - name: Add user "postfix" in group "mail"
   user:
     name: postfix
     groups: mail
     append: yes
 
-- name: Create directory "/var/spool/postfix/var/run/cyrus/socket"
+- name: Create directories for lmtp socket
   file:
-    path: /var/spool/postfix/var/run/cyrus/socket
+    path: "{{ item }}"
     state: directory
-    recurse: yes
     owner: cyrus
     group: mail
     mode: 0755
+  with_list:
+  - /var/spool/postfix/var/run/cyrus
+  - /var/spool/postfix/var/run/cyrus/socket
  
 # Configure Cyrus
 
@@ -181,6 +150,32 @@
     path: /var/spool/cyrus/news/{{ item }}
     state: absent
   with_list: [a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v, w, x, y, z]
+
+- name: Be sure postfix own the lmtp socket
+  file:
+    path: /var/spool/postfix/var/run/cyrus/socket/lmtp
+    owner: postfix
+    group: mail
+    mode: 0777
+
+- name: Copy file /etc/fail2ban/fail2ban.local
+  copy:
+    src: "{{ role_path }}/files/etc_fail2ban_fail2ban.local"
+    dest: /etc/fail2ban/fail2ban.local
+  register: copy_fail2ban_local
+
+- name: Copy file /etc/fail2ban/jail.local
+  template:
+    src: "{{ role_path }}/templates/etc_fail2ban_jail.local.j2"
+    dest: /etc/fail2ban/jail.local
+  register: copy_jail_local
+
+- name: Restart fail2ban service
+  systemd:
+    name: fail2ban
+    state: restarted
+  when: copy_fail2ban_local.changed or
+        copy_jail_local.changed
 
 # Backup and Restore
 

@@ -164,6 +164,7 @@
   apt:
     upgrade: yes
     force_apt_get: yes
+  failed_when: false
 
 - name: clears out the local repository of retrieved package files
   command: apt-get clean warn=false

@@ -1,0 +1,284 @@
+---
+- name: Install packages
+  apt:
+    name: "{{ item }}"
+    state: present
+    update_cache: yes
+    cache_valid_time: 3600
+  with_list:
+  - mariadb-client
+  - mariadb-server
+  - python3-mysqldb
+  - libpam-ldap
+  - libmariadbd18
+
+## CONFIGURE MARIADB
+
+- name: Copy file /etc/mysql/mariadb.conf.d/50-server.cnf
+  template:
+    src: "{{ role_path }}/templates/etc_mysql_mariadb.conf.d_50-server.cnf.j2"
+    dest: /etc/mysql/mariadb.conf.d/50-server.cnf
+    owner: root
+    group: root
+    mode: 0644
+  register: copy_50_server_cnf
+
+- name: Restart mariadb service
+  systemd:
+    name: mariadb
+    state: restarted
+  when: copy_50_server_cnf.changed
+
+### ACTIVATE PAM
+
+- name: Check status of "pam" plugin for mariadb
+  command: mysql -s -h localhost -D mysql -e "SELECT name,dl FROM plugin WHERE name='pam';"
+  register: query_plugin_pam
+  changed_when: false
+
+- name: Activate "pam" plugin for mariadb
+  command: mysql -s -h localhost -D mysql -e "INSTALL SONAME 'auth_pam';"
+  when: "'pam\tauth_pam.so' not in query_plugin_pam.stdout_lines"
+
+- name: Create file "/etc/pam.d/mariadb"
+  copy:
+    content: |
+        #%PAM-1.0
+        auth     required  pam_ldap.so  try_first_pass 
+        account  required  pam_ldap.so
+    dest: /etc/pam.d/mariadb
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Get password of {{ ldap_account }} account in LDAP
+  set_fact:
+    ldap_password: "{{ item }}"
+  with_file: "{{ minidc_working_directory }}/{{ ldap_pair }}/passwords/{{ ldap_account }}_password"
+  loop_control:
+    label: "{{ ldap_account }}_password"
+  no_log: true
+
+- name: Create file /etc/ldap.conf
+  copy:
+    content: |
+        uri             ldap://{{ ldap_url }}
+        base            ou={{ hostvars[ldap_pair]['ldap_ou_applications'] }},{{ ldap_rootdn }}
+        binddn          uid={{ ldap_account }},ou={{ hostvars[ldap_pair]['ldap_ou_applications'] }},{{ ldap_rootdn }}
+        bindpw          {{ ldap_password }}
+        tls_cacertfile  {{ ca_cert_dir }}/{% if use_letsencrypt_rvprx_cert %}ca-certificates.crt{% else %}ca.crt{% endif %}
+
+        tls_checkpeer   yes
+        ssl             start_tls
+    dest: /etc/ldap.conf
+    owner: mysql
+    group: root
+    mode: 0600
+  no_log: true
+
+### MANAGE USERS
+
+- name: Check existence of users
+  command: mysql -s -h localhost -D mysql -e "SELECT User,Host FROM user;"
+  register: query_users
+  changed_when: false
+
+- name: Create the list of users to have
+  set_fact:
+    list_users_to_have: "{{ list_users_to_have | default([]) + [item.1 + '\t%'] }}"
+  with_subelements:
+  - "{{ databases }}"
+  - users
+
+- name: Create the list of users to delete
+  set_fact:
+    list_users_to_delete: "{{ query_users.stdout_lines | difference(list_users_to_have) | difference(['root\tlocalhost']) }}"
+
+- name: Create the list of users to create
+  set_fact:
+    list_users_to_create: "{{ list_users_to_create | default([]) + [item.1] }}"
+  with_subelements:
+  - "{{ databases }}"
+  - users
+  when: "(item.1 + '\t%') not in query_users.stdout_lines"
+
+- name: Create users
+  command: mysql -s -h localhost -D mysql -e "CREATE USER '{{ item.1 }}'@'%' IDENTIFIED VIA pam;"
+  with_subelements:
+  - "{{ databases }}"
+  - users
+  when:
+  - list_users_to_create is defined
+  - item.1 in list_users_to_create
+  loop_control:
+    label: "{{ item.1 }}"
+
+- name: Delete users
+  command: mysql -s -h localhost -D mysql -e "DROP USER '{{ item | regex_replace('^(.+)\t.+$', '\1') }}';"
+  with_list: "{{ list_users_to_delete }}"
+  loop_control:
+    label: "{{ item | regex_replace('^(.+)\t.+$', '\\1') }}"
+
+## MANAGE DATABASES
+
+- name: Get the list of databases
+  command: mysql -s -h localhost -D mysql -e "SHOW DATABASES;"
+  register: query_databases
+  changed_when: false
+
+- name: Create databases
+  mysql_db:
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    name: "{{ item.name }}"
+    encoding: utf8
+    state: present
+  with_list: "{{ databases }}"
+  when: not item.restore
+
+- name: Delete databases
+  mysql_db:
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    name: "{{ item }}"
+    state: absent
+  with_list: "{{ query_databases.stdout_lines }}"
+  when:
+  - item not in ['information_schema', 'mysql', 'performance_schema']
+  - item not in (databases | map(attribute='name') | list)
+
+## PRIVILEGES
+
+- name: Get the list of privileges for each user
+  command: mysql -s -h localhost -D mysql -e "SHOW GRANTS FOR {{ item.1 }};"
+  register: query_grants
+  with_subelements:
+  - "{{ databases }}"
+  - users
+  changed_when: false
+
+- name: Create the list of all privileges on all databases
+  set_fact:
+    privileges: "{{ privileges | default([]) + item.stdout_lines }}"
+  with_list: "{{ query_grants.results }}"
+  loop_control:
+    label: "{{ item.stdout_lines }}"
+
+- name: Grant all privileges for each user on his database
+  command: mysql -s -h localhost -D mysql -e "GRANT ALL PRIVILEGES ON {{ item.0.name }}.* TO '{{ item.1 }}'@'%';"
+  with_subelements:
+  - "{{ databases }}"
+  - users
+  when: "'GRANT ALL PRIVILEGES ON `' + item.0.name + '`.* TO \\'' + item.1 + '\\'@\\'%\\'' not in privileges"
+
+## BACKUP / RESTORE
+
+- name: Fail when "backup" and "restore" is set to "true" for the same database
+  fail:
+    msg: "Error ! You cannot set 'backup' and 'restore' to 'true' for the same database ({{ item.name }})."
+  with_list: "{{ databases }}"
+  when:
+  - item.backup is defined
+  - item.backup
+  - item.restore is defined
+  - item.restore
+
+- name: Fail when "backup_all_databases" and "restore_all_databases" is set to "true"
+  fail:
+    msg: "Error ! You cannot set 'backup_all_databases' and 'restore_all_databases' to 'true'."
+  when:
+  - backup_all_databases is defined
+  - backup_all_databases
+  - restore_all_databases is defined
+  - restore_all_databases
+
+## BACKUP
+
+- name: Create directory "/srv/backup"
+  file:
+    path: /srv/backup
+    state: directory
+
+- name: Dump databases into "/srv/backup"
+  mysql_db:
+    state: dump
+    name: "{{ item.name }}"
+    target: "/srv/backup/{{ item.name }}.sql"
+    single_transaction: yes
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+  with_list: "{{ databases }}"
+  when:
+  - item.backup is defined
+  - item.backup
+
+- name: Fetch all SQL files from databases dumps
+  fetch:
+    src: "/srv/backup/{{ item.name }}.sql"
+    dest: "{{ minidc_working_directory }}/{{ inventory_hostname }}/"
+    flat: true
+  with_list: "{{ databases }}"
+  when:
+  - item.backup is defined
+  - item.backup
+
+- name: Dump all databases into "/srv/backup"
+  mysql_db:
+    state: dump
+    name: all
+    target: "/srv/backup/all_databases.sql"
+    single_transaction: yes
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+  when:
+  - backup_all_databases is defined
+  - backup_all_databases
+
+- name: Fetch SQL file from the all_databases dump
+  fetch:
+    src: "/srv/backup/all_databases.sql"
+    dest: "{{ minidc_working_directory }}/{{ inventory_hostname }}/"
+    flat: true
+  when:
+  - backup_all_databases is defined
+  - backup_all_databases
+
+## RESTORE
+
+- name: Create directory "/srv/backup"
+  file:
+    path: /srv/restore
+    state: directory
+
+- name: Copy SQL files for specific databases
+  copy:
+    src: "{{ minidc_working_directory }}/{{ inventory_hostname }}/{{ item.name }}.sql"
+    dest: /srv/restore/
+  with_list: "{{ databases }}"
+  when:
+  - item.restore is defined
+  - item.restore
+
+- name: Restore specific databases
+  mysql_db:
+    name: "{{ item.name }}"
+    state: import
+    target: "/srv/restore/{{ item.name }}.sql"
+  with_list: "{{ databases }}"
+  when:
+  - item.restore is defined
+  - item.restore
+
+- name: Copy SQL file for all_databases
+  copy:
+    src: "{{ minidc_working_directory }}/{{ inventory_hostname }}/all_databases.sql"
+    dest: /srv/restore/
+  when:
+  - restore_all_databases is defined
+  - restore_all_databases
+
+- name: Restore all databases
+  mysql_db:
+    state: import
+    name: all
+    target: "/srv/restore/all_databases.sql"
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+  when:
+  - restore_all_databases is defined
+  - restore_all_databases

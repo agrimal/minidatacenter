@@ -6,6 +6,7 @@
 #     namespace.  A user's personal calendar hierarchy will be a child of their Inbox.
 
 admins: {% for account in admin_accounts %}{{ account }} {% endfor %}
+
 #     The  list  of  userids with administrative rights.  Separate each userid with a space.  Sites
 #     using Kerberos authentication may use separate "admin" instances.
 #
@@ -871,7 +872,7 @@ lmtpsocket: /var/spool/postfix/var/run/cyrus/socket/lmtp
 #maxlogins_per_host: 0
 #     Maximum number of logged in sessions allowed per host, zero means no limit
 
-maxlogins_per_user: 4
+maxlogins_per_user: 2
 #     Maximum number of logged in sessions allowed per user, zero means no limit
 
 maxmessagesize: 102400000
@@ -1418,7 +1419,7 @@ servername: {{ certificate_name }}
 #sieve_maxscripts: 5
 #     Maximum number of sieve scripts any user may have, enforced at submission by timsieved(8).
 
-#sieve_utf8fileinto: 0
+sieve_utf8fileinto: 1
 #     If  enabled,  the sieve engine expects folder names for the fileinto action in scripts to use
 #     UTF8 encoding.  Otherwise, modified UTF7 encoding should be used.
 
@@ -1710,7 +1711,7 @@ tls_session_timeout: 120
 #     The length of time (in minutes) that a TLS session will be cached for later reuse.  The maxi‐
 #     mum value is 1440 (24 hours), the default.  A value of 0 will disable session caching.
 
-#tls_versions: tls1_2
+tls_versions: tls1_2
 #     A  list of SSL/TLS versions to not disable. Cyrus IMAP SSL/TLS starts with all protocols, and
 #     substracts protocols not in this list. Newer versions of SSL/TLS will need to be  added  here
 #     to allow them to get disabled.

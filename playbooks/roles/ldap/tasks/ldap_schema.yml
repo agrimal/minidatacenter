@@ -1,0 +1,20 @@
+---
+- name: Execute ldapsearch
+  command: "{{ ldapsearch_command }} -b cn=schema,cn=config '(objectClass=olcSchemaConfig)' -LLL dn"
+  register: ldapsearch_ouput
+  changed_when: False
+
+- name: Extract schemas from previous ldapsearch
+  set_fact:
+    current_schema_list: "{{ current_schema_list | default([]) + ldapsearch_ouput.stdout_lines | map('regex_replace', 'dn: cn=({[0-9]+})?', 'cn=') | reject('equalto', '') | list }}"
+    dn: "cn={{ cn }},cn=schema,cn=config"
+
+- name: Copy LDIF file "{{ ldap_dir + '/cn_' + cn | regex_replace('[^A-Za-z0-9-]', '_') + '_cn_schema_cn_config_add.ldif' }}"
+  template:
+    src: "{{ role_path }}/templates/ldap_schema_add.ldif.j2"
+    dest: "{{ ldap_dir + '/cn_' + cn | regex_replace('[^A-Za-z0-9-]', '_') + '_cn_schema_cn_config_add.ldif' }}"
+  when: dn not in current_schema_list
+
+- name: Execute ldapmodify to modify the attribute value
+  command: "{{ ldapadd_command }} -f {{ ldap_dir + '/cn_' + cn | regex_replace('[^A-Za-z0-9-]', '_') + '_cn_schema_cn_config_add.ldif' }}"
+  when: dn not in current_schema_list

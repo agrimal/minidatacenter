@@ -11,17 +11,13 @@
 # ==========================================================================
 smtp      inet  n       -       y       -       -       smtpd
   -o syslog_name=postfix/smtp
-slow      unix  -       -       y       -       5       smtp
-  -o syslog_name=postfix/slow
-  -o smtp_destination_concurrency_limit=3
-  -o slow_destination_rate_delay=1
 #smtp      inet  n       -       y       -       1       postscreen
 #smtpd     pass  -       -       y       -       -       smtpd
 #dnsblog   unix  -       -       y       -       0       dnsblog
 #tlsproxy  unix  -       -       y       -       0       tlsproxy
 submission inet n       -       y       -       -       smtpd
   -o syslog_name=postfix/submission
-#  -o smtpd_tls_security_level=encrypt
+  -o smtpd_tls_security_level=encrypt
 #  -o smtpd_sasl_auth_enable=yes
 #  -o smtpd_tls_auth_only=yes
 #  -o smtpd_reject_unlisted_recipient=no

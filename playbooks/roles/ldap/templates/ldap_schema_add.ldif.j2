@@ -1,0 +1,9 @@
+dn: cn={{ cn }},cn=schema,cn=config
+objectClass: olcSchemaConfig
+cn: {{ cn }}
+{% for attribute_type in attribute_types %}
+olcAttributeTypes: ( {{ attribute_type }})
+{% endfor %}
+{% for object_class in object_classes %}
+olcObjectClasses: ( {{ object_class }})
+{% endfor %}

@@ -9,8 +9,8 @@ search_base = ou={{ hostvars[ldap_pair].ldap_ou_users }},{{ ldap_rootdn }}
 query_filter = (mail=%s)
 result_attribute = mail
 bind = yes
-bind_dn = uid={{ saslauthd_account }},ou={{ hostvars[ldap_pair].ldap_ou_applications }},{{ ldap_rootdn }}
-bind_pw = {{ lookup('file', minidc_working_directory + '/' + ldap_pair + '/passwords/' + saslauthd_account + '_password') }}
+bind_dn = uid={{ ldap_account }},ou={{ hostvars[ldap_pair].ldap_ou_applications }},{{ ldap_rootdn }}
+bind_pw = {{ lookup('file', minidc_working_directory + '/' + ldap_pair + '/passwords/' + ldap_account + '_password') }}
 start_tls = yes
 tls_require_cert = yes
 tls_ca_cert_file = {{ ca_cert_dir }}/{{ ca_cert_file }}

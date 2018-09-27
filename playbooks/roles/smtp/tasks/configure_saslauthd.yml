@@ -46,10 +46,11 @@
 
 - name: Get password for the saslauthd account
   set_fact:
-    saslauthd_password: "{{ item }}"
-  with_file: "{{ minidc_working_directory }}/{{ ldap_pair }}/passwords/{{ saslauthd_account }}_password"
+    ldap_password: "{{ item }}"
+  with_file: "{{ minidc_working_directory }}/{{ ldap_pair }}/passwords/{{ ldap_account }}_password"
   loop_control:
-    label: "{{ saslauthd_account }}_password"
+    label: "{{ ldap_account }}_password"
+  no_log: true
 
 - name: Copy "/etc/saslauthd.conf"
   template:

@@ -97,19 +97,35 @@
 
 - name: Copy LDAP certificate
   copy:
-    src: "{{ minidc_working_directory }}/{{ ca_pair }}/{{ hostvars[ca_pair]['ca_easy_rsa_install_dir'] }}/keys/{{ ldap_certificate }}.crt"
-    dest: "{{ ca_cert_dir }}/{{ ldap_certificate }}.crt"
+    src: "{{ minidc_working_directory }}/{{ ca_pair }}/{{ hostvars[ca_pair]['ca_easy_rsa_install_dir'] }}/keys/{{ certificate_name }}.crt"
+    dest: "{{ ca_cert_dir }}/{{ certificate_name }}.crt"
   register: copy_ldap_crt_task
   when: not use_letsencrypt_rvprx_cert
 
 - name: Copy LDAP key
   copy:
-    src: "{{ minidc_working_directory }}/{{ ca_pair }}/{{ hostvars[ca_pair]['ca_easy_rsa_install_dir'] }}/keys/{{ ldap_certificate }}.key"
-    dest: "{{ ca_private_dir }}/{{ ldap_certificate }}.key"
+    src: "{{ minidc_working_directory }}/{{ ca_pair }}/{{ hostvars[ca_pair]['ca_easy_rsa_install_dir'] }}/keys/{{ certificate_name }}.key"
+    dest: "{{ ca_private_dir }}/{{ certificate_name }}.key"
     mode: 0640
     group: ssl-cert
   register: copy_ldap_key_task
   when: not use_letsencrypt_rvprx_cert
+
+- name: Copy LDAP certificate
+  copy:
+    src: "{{ minidc_working_directory }}/{{ rvprx_pair }}/etc/letsencrypt/live/{{ certificate_name }}/fullchain.pem"
+    dest: "{{ ca_cert_dir }}/{{ certificate_name }}-fullchain.pem"
+  register: copy_ldap_crt_task
+  when: use_letsencrypt_rvprx_cert
+
+- name: Copy LDAP key
+  copy:
+    src: "{{ minidc_working_directory }}/{{ rvprx_pair }}/etc/letsencrypt/live/{{ certificate_name }}/privkey.pem"
+    dest: "{{ ca_private_dir }}/{{ certificate_name }}-privkey.pem"
+    mode: 0640
+    group: ssl-cert
+  register: copy_ldap_key_task
+  when: use_letsencrypt_rvprx_cert
 
 - name: Restart slapd service if configuration has changed
   systemd:
@@ -254,6 +270,7 @@
   set_fact:
     ldapsearch_command: ldapsearch -o ldif-wrap=no -Q -Y external -H ldapi:///
     ldapmodify_command: ldapmodify -Y external -H ldapi:///
+    ldapadd_command: ldapadd -Y external -H ldapi:///
 
 - name: Prepare variables to modify 'olcLogLevel' attribute for 'cn=config'
   set_fact:
@@ -262,7 +279,7 @@
     filter: cn=config
     attribute: olcLogLevel
     wanted_attribute_value:
-    - stats acl
+    - stats
 
 - include_tasks: '{{ role_path }}/tasks/ldap_attributes.yml'
 
@@ -298,6 +315,25 @@
 
 - include_tasks: '{{ role_path }}/tasks/ldap_attributes.yml'
 
+- name: Prepare variables to create 'cn=selfservicepassword' schema in 'cn=schema,cn=config'
+  set_fact:
+    cn: selfservicepassword
+    attribute_types:
+    - "1.3.6.1.2.5.5.12.2\n  NAME 'backupMail'\n  DESC 'Second mail for recovering password'\n  EQUALITY caseIgnoreIA5Match\n  SUBSTR caseIgnoreIA5SubstringsMatch\n  SYNTAX 1.3.6.1.4.1.1466.115.121.1.26{256}"
+    object_classes:
+    - "1.3.6.1.2.5.5.12.1\n  NAME 'inetSweetOrgPerson' SUP inetOrgPerson STRUCTURAL MAY ( backupMail )"
+
+- include_tasks: '{{ role_path }}/tasks/ldap_schema.yml'
+
+- name: Prepare variables to add 'backupMail' attribute type to 'cn=selfservicepassword,cn=schema,cn=config'
+  set_fact:
+    dn: cn=selfservicepassword,cn=schema,cn=config
+    search_base: cn=schema,cn=config
+    filter: cn=config
+    attribute: olcTLSCACertificateFile
+    wanted_attribute_value:
+    - '{{ ca_cert_dir }}/{{ ca_cert_file }}'
+
 - name: Prepare variables to add 'olcTLSCACertificateFile' attribute for 'cn=config'
   set_fact:
     dn: cn=config
@@ -322,14 +358,14 @@
 
 - name: Define 'olcTLSCertificateFile' and 'olcTLSCertificateKeyFile' values for 'cn=config'
   set_fact:
-    config_olcTLSCertificateFile: "{{ ca_cert_dir }}/{{ ldap_certificate }}.crt"
-    config_olcTLSCertificateKeyFile: "{{ ca_private_dir }}/{{ ldap_certificate }}.key"
+    config_olcTLSCertificateFile: "{{ ca_cert_dir }}/{{ certificate_name }}.crt"
+    config_olcTLSCertificateKeyFile: "{{ ca_private_dir }}/{{ certificate_name }}.key"
   when: not use_letsencrypt_rvprx_cert
 
 - name: Define 'olcTLSCertificateFile' and 'olcTLSCertificateKeyFile' values for 'cn=config'
   set_fact:
-    config_olcTLSCertificateFile: "{{ ca_cert_dir }}/{{ ldap_certificate }}-fullchain.pem"
-    config_olcTLSCertificateKeyFile: "{{ ca_private_dir }}/{{ ldap_certificate }}-privkey.pem"
+    config_olcTLSCertificateFile: "{{ ca_cert_dir }}/{{ certificate_name }}-fullchain.pem"
+    config_olcTLSCertificateKeyFile: "{{ ca_private_dir }}/{{ certificate_name }}-privkey.pem"
   when: use_letsencrypt_rvprx_cert
 
 - name: Execute ldapsearch to get olcTLSCertificateFile attribute value for "cn=config"
