@@ -315,24 +315,24 @@
 
 - include_tasks: '{{ role_path }}/tasks/ldap_attributes.yml'
 
-- name: Prepare variables to create 'cn=selfservicepassword' schema in 'cn=schema,cn=config'
-  set_fact:
-    cn: selfservicepassword
-    attribute_types:
-    - "1.3.6.1.2.5.5.12.2\n  NAME 'backupMail'\n  DESC 'Second mail for recovering password'\n  EQUALITY caseIgnoreIA5Match\n  SUBSTR caseIgnoreIA5SubstringsMatch\n  SYNTAX 1.3.6.1.4.1.1466.115.121.1.26{256}"
-    object_classes:
-    - "1.3.6.1.2.5.5.12.1\n  NAME 'inetSweetOrgPerson' SUP inetOrgPerson STRUCTURAL MAY ( backupMail )"
-
-- include_tasks: '{{ role_path }}/tasks/ldap_schema.yml'
-
-- name: Prepare variables to add 'backupMail' attribute type to 'cn=selfservicepassword,cn=schema,cn=config'
-  set_fact:
-    dn: cn=selfservicepassword,cn=schema,cn=config
-    search_base: cn=schema,cn=config
-    filter: cn=config
-    attribute: olcTLSCACertificateFile
-    wanted_attribute_value:
-    - '{{ ca_cert_dir }}/{{ ca_cert_file }}'
+#- name: Prepare variables to create 'cn=selfservicepassword' schema in 'cn=schema,cn=config'
+#  set_fact:
+#    cn: selfservicepassword
+#    attribute_types:
+#    - "1.3.6.1.2.5.5.12.2\n  NAME 'backupMail'\n  DESC 'Second mail for recovering password'\n  EQUALITY caseIgnoreIA5Match\n  SUBSTR caseIgnoreIA5SubstringsMatch\n  SYNTAX 1.3.6.1.4.1.1466.115.121.1.26{256}"
+#    object_classes:
+#    - "1.3.6.1.2.5.5.12.1\n  NAME 'inetSweetOrgPerson' SUP inetOrgPerson STRUCTURAL MAY ( backupMail )"
+#
+#- include_tasks: '{{ role_path }}/tasks/ldap_schema.yml'
+#
+#- name: Prepare variables to add 'backupMail' attribute type to 'cn=selfservicepassword,cn=schema,cn=config'
+#  set_fact:
+#    dn: cn=selfservicepassword,cn=schema,cn=config
+#    search_base: cn=schema,cn=config
+#    filter: cn=config
+#    attribute: olcTLSCACertificateFile
+#    wanted_attribute_value:
+#    - '{{ ca_cert_dir }}/{{ ca_cert_file }}'
 
 - name: Prepare variables to add 'olcTLSCACertificateFile' attribute for 'cn=config'
   set_fact:

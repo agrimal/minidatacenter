@@ -686,5 +686,7 @@
 # Optional, only for OVH
 - include_tasks: "{{ role_path }}/tasks/ovh_checkip.yml"
   when:
-  - ovh_checkip_domain is defined
-  - ovh_checkip_subdomains is defined
+  - ovh_checkip_domains is defined
+  - ovh_checkip_application_key is defined
+  - ovh_checkip_application_secret is defined
+  - ovh_checkip_consumer_key is defined

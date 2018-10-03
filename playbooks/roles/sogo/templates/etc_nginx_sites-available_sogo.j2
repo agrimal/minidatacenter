@@ -1,3 +1,5 @@
+log_format sogo_logformat 'user:$remote_user - proxy_add_x_forwarded_for:$proxy_add_x_forwarded_for - host:$host - remote_addr:$remote_addr - status:$status - request_method:$request_method - request_uri:$request_uri - server_protocol:$server_protocol - proxy_host:$proxy_host';
+
 server {
     listen 80;
     root /usr/lib/GNUstep/SOGo/WebServerResources/;
@@ -6,6 +8,8 @@ server {
     client_max_body_size 100M;
     index index.php index.html index.htm;
     autoindex off;
+    access_log syslog:server=unix:/dev/log sogo_logformat;
+    error_log syslog:server=unix:/dev/log;
     location = / {
         rewrite ^ http://$server_name/SOGo;
         allow all;

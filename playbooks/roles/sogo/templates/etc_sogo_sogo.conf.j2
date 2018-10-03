@@ -34,13 +34,13 @@
   );
 
   // MARIADB DATABASE
-  SOGoProfileURL = "mysql://sogo:{{ ldap_password }}@{{ mysql_server }}:{{ mysql_port }}/sogo/sogo_user_profile";
-  OCSFolderInfoURL = "mysql://sogo:{{ ldap_password }}@{{ mysql_server }}:{{ mysql_port }}/sogo/sogo_folder_info";
-  OCSSessionsFolderURL = "mysql://sogo:{{ ldap_password }}@{{ mysql_server }}:{{ mysql_port }}/sogo/sogo_sessions_folder";
-  OCSEMailAlarmsFolderURL = "mysql://sogo:{{ ldap_password }}@{{ mysql_server }}:{{ mysql_port }}/sogo/sogo_alarms_folder";
-  OCSStoreURL = "mysql://sogo:{{ ldap_password }}@{{ mysql_server }}:{{ mysql_port }}/sogo/sogo_store";
-  OCSAclURL = "mysql://sogo:{{ ldap_password }}@{{ mysql_server }}:{{ mysql_port }}/sogo/sogo_acl";
-  OCSCacheFolderURL = "mysql://sogo:{{ ldap_password }}@{{ mysql_server }}:{{ mysql_port }}/sogo/sogo_cache_folder";
+  SOGoProfileURL = "mysql://sogo:{{ mysql_password }}@{{ mysql_server }}:{{ mysql_port }}/sogo/sogo_user_profile";
+  OCSFolderInfoURL = "mysql://sogo:{{ mysql_password }}@{{ mysql_server }}:{{ mysql_port }}/sogo/sogo_folder_info";
+  OCSSessionsFolderURL = "mysql://sogo:{{ mysql_password }}@{{ mysql_server }}:{{ mysql_port }}/sogo/sogo_sessions_folder";
+  OCSEMailAlarmsFolderURL = "mysql://sogo:{{ mysql_password }}@{{ mysql_server }}:{{ mysql_port }}/sogo/sogo_alarms_folder";
+  OCSStoreURL = "mysql://sogo:{{ mysql_password }}@{{ mysql_server }}:{{ mysql_port }}/sogo/sogo_store";
+  OCSAclURL = "mysql://sogo:{{ mysql_password }}@{{ mysql_server }}:{{ mysql_port }}/sogo/sogo_acl";
+  OCSCacheFolderURL = "mysql://sogo:{{ mysql_password }}@{{ mysql_server }}:{{ mysql_port }}/sogo/sogo_cache_folder";
   MySQL4Encoding = "utf8mb4";
 
   // SMTP

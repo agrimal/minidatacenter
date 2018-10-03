@@ -58,16 +58,16 @@
         activate_vhost_sogo.changed or
         modify_vhost_default.changed
 
-- name: Create directory "/usr/lib/mysql/plugin"
-  file:
-    path: /usr/lib/mysql/plugin
-    state: directory
-
-- name: Create symbolic link from "/usr/lib/x86_64-linux-gnu/mariadb18/plugin/dialog.so" to "/usr/lib/mysql/plugin/dialog.so"
-  file:
-    path: /usr/lib/mysql/plugin/dialog.so
-    state: link
-    src: /usr/lib/x86_64-linux-gnu/mariadb18/plugin/dialog.so 
+#- name: Create directory "/usr/lib/mysql/plugin"
+#  file:
+#    path: /usr/lib/mysql/plugin
+#    state: directory
+#
+#- name: Create symbolic link from "/usr/lib/x86_64-linux-gnu/mariadb18/plugin/dialog.so" to "/usr/lib/mysql/plugin/dialog.so"
+#  file:
+#    path: /usr/lib/mysql/plugin/dialog.so
+#    state: link
+#    src: /usr/lib/x86_64-linux-gnu/mariadb18/plugin/dialog.so 
 
 - name: Add Inverse GPG key
   apt_key:
@@ -86,12 +86,20 @@
     update_cache: yes
     cache_valid_time: 3600
 
-- name: Get password of {{ ldap_account }} account in LDAP
+#- name: Get password of {{ ldap_account }} account in LDAP
+#  set_fact:
+#    ldap_password: "{{ item }}"
+#  with_file: "{{ minidc_working_directory }}/{{ ldap_pair }}/passwords/{{ ldap_account }}_password"
+#  loop_control:
+#    label: "{{ ldap_account }}_password"
+#  no_log: true
+
+- name: Get password of {{ mysql_account }} account in MySQL
   set_fact:
-    ldap_password: "{{ item }}"
-  with_file: "{{ minidc_working_directory }}/{{ ldap_pair }}/passwords/{{ ldap_account }}_password"
+    mysql_password: "{{ item }}"
+  with_file: "{{ minidc_working_directory }}/{{ mysql_pair }}/passwords/{{ mysql_account }}_password"
   loop_control:
-    label: "{{ ldap_account }}_password"
+    label: "{{ mysql_account }}_password"
   no_log: true
 
 - name: Copy "/etc/sogo/sogo.conf" file
@@ -102,6 +110,22 @@
     group: root
     mode: 0600
   register: copy_sogo_conf
+
+- name: Copy favicon
+  copy:
+    src: "{{ minidc_working_directory }}/{{ inventory_hostname }}/{{ sogo_favicon_path }}"
+    dest: /usr/lib/GNUstep/SOGo/WebServerResources/img/sogo.ico
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Copy biglogo
+  copy:
+    src: "{{ minidc_working_directory }}/{{ inventory_hostname }}/{{ sogo_biglogo_path }}"
+    dest: /usr/lib/GNUstep/SOGo/WebServerResources/img/sogo-full.svg
+    owner: root
+    group: root
+    mode: 0644
 
 - name: Restart sogo systemd service
   systemd:

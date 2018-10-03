@@ -1,0 +1,26 @@
+<VirtualHost *:80>
+
+    ServerAdmin {{ nextcloud_admin_mail }}
+    DocumentRoot /var/www/nextcloud
+    ServerName {{ certificate_name }}
+
+    <Directory /var/www/nextcloud>
+       Options +FollowSymlinks
+       AllowOverride All
+       Require all granted
+       <IfModule mod_dav.c>
+            Dav off
+       </IfModule>
+       SetEnv HOME /var/www/nextcloud
+       SetEnv HTTP_HOME /var/www/nextcloud
+    </Directory>
+
+    <FilesMatch \.php$>
+        SetHandler "proxy:unix:/var/run/php/php7.2-fpm.sock|fcgi://localhost/"
+    </FilesMatch>
+
+    ErrorLog ${APACHE_LOG_DIR}/error.log
+    CustomLog ${APACHE_LOG_DIR}/access.log combined
+
+</VirtualHost>
+

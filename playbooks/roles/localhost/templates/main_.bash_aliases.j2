@@ -14,6 +14,7 @@ alias deploy_smtp='/opt/minidc/python-venv/bin/ansible-playbook -i {{ minidc_wor
 alias deploy_plex='/opt/minidc/python-venv/bin/ansible-playbook -i {{ minidc_working_directory }}/inventory.yml /opt/minidc/playbooks/setup-plex.yml'
 alias deploy_sogo='/opt/minidc/python-venv/bin/ansible-playbook -i {{ minidc_working_directory }}/inventory.yml /opt/minidc/playbooks/setup-sogo.yml'
 alias deploy_mariadb='/opt/minidc/python-venv/bin/ansible-playbook -i {{ minidc_working_directory }}/inventory.yml /opt/minidc/playbooks/setup-mariadb.yml'
+alias deploy_nextcloud='/opt/minidc/python-venv/bin/ansible-playbook -i {{ minidc_working_directory }}/inventory.yml /opt/minidc/playbooks/setup-nextcloud.yml'
 
 
 alias lxcls='lxc list -c n4sNc,limits.cpu,limits.memory,boot.autostart,image.serial'

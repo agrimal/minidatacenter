@@ -1,37 +1,38 @@
 #!/usr/bin/env python3
 
-import ovh, dnsq, syslog
+import ovh, dnsq
 
 change = 0
-zone = "{{ ovh_checkip_domain }}"
+records = {}
+{% for domain in ovh_checkip_domains %}
+records['{{ domain.name }}'] = []
+{% for record in domain.records %}
+records['{{ domain.name }}'].append('{{ record }}')
+{% endfor %}
+{% endfor %}
+
 myip_url = "myip.opendns.com"
 opendns_serv = "resolver1.opendns.com"
-subDomains_list = ({% for subdomain in ovh_checkip_subdomains %}'{{ subdomain }}', {% endfor %})
-
-syslog.openlog(facility=syslog.LOG_LOCAL0)
-
-def log(*args):
-    for line in args:
-        syslog.syslog(syslog.LOG_INFO, line)
 
 # Get public IP
 myip = dnsq.query_dns(myip_url, 'A', ns_server=opendns_serv)[0]
-log("My public IP is : " + str(myip) + " - Checking DNS...")
+print("My public IP is : " + str(myip))
 
 # Start connection to OVH
 client = ovh.Client(config_file='/usr/local/sbin/ovh.conf')
 
-# For each record
-for record_id in client.get('/domain/zone/' + zone + '/record'):
-    record = client.get('/domain/zone/' + zone + '/record/' + str(record_id))
-    # If the record type is A, the sub-domain is in the list and the IP is different
-    if record['fieldType'] == 'A' and record['subDomain'] in subDomains_list and record['target'] != myip:
-            result = client.put('/domain/zone/' + zone + '/record/' + str(record['id']), target=myip, ttl=0, subDomain=record['subDomain'])
-            subDomain = '' if record['subDomain'] is None else record['subDomain']
-            log(">>>> Changing IP of " + subDomain + "." + zone)
-            change = 1
+# For each domain
+for domain, subDomain_list in records.items():
+    print("Checking domain : " + domain)
+    for record_id in client.get('/domain/zone/' + domain + '/record'):
+        record = client.get('/domain/zone/' + domain + '/record/' + str(record_id))
+        # If the record type is A, the sub-domain is in the list and the IP is different
+        if record['fieldType'] == 'A' and record['subDomain'] in subDomain_list and record['target'] != myip:
+                result = client.put('/domain/zone/' + domain + '/record/' + str(record['id']), target=myip, ttl=600, subDomain=record['subDomain'])
+                subDomain = '' if record['subDomain'] is None else record['subDomain']
+                print("|---->>>> Changing IP of '" + subDomain + "." + domain + "' <<<<----|")
+                change = 1
 
 if change == 0:
-    log("Nothing to change.")
+    print("Nothing to change.")
 
-syslog.closelog()

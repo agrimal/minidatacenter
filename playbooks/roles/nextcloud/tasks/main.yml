@@ -1,0 +1,370 @@
+---
+- name: Create directory "/etc/redis"
+  file:
+    state: directory
+    path: /etc/redis
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Copy file "/etc/redis/redis.conf"
+  copy:
+    src: "{{ role_path }}/files/etc_redis_redis.conf"
+    dest: /etc/redis/redis.conf
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Install packages
+  action: >
+    apt name={{ item }} update_cache=yes cache_valid_time=3600 state=latest
+  with_list:
+  - apache2
+  - libapache2-mod-php
+  - php-gd
+  - php-json
+  - php-mysql
+  - php-curl
+  - php-mbstring
+  - php-intl
+  - php-imagick
+  - php-xml
+  - php-zip
+  - php-ldap
+  - php-redis
+  - php-apcu
+  - php-fpm
+  - redis-server
+
+- name: Copy file "/etc/redis/redis.conf" again
+  copy:
+    src: "{{ role_path }}/files/etc_redis_redis.conf"
+    dest: /etc/redis/redis.conf
+    owner: root
+    group: root
+    mode: 0755
+  register: copy_redis_conf
+
+- name: Restart redis-server.service
+  systemd:
+    name: redis-server
+    state: restarted
+  when: copy_redis_conf.changed
+
+- name: Be sure redis-server.service is started and enabled
+  systemd:
+    name: redis-server
+    state: started
+    enabled: yes
+
+- name: Copy "/etc/php/7.2/fpm/php.ini"
+  copy:
+    src: "{{ role_path }}/files/etc_php_7.2_fpm_php.ini"
+    dest: /etc/php/7.2/fpm/php.ini
+    owner: root
+    group: root
+    mode: 0644
+  register: copy_php_ini
+
+- name: Disable default apache2 virtual host
+  file:
+    path: /etc/apache2/sites-enabled/000-default.conf
+    state: absent
+
+- name: Delete directory "/var/www/html"
+  file:
+    path: /var/www/html
+    state: absent
+
+- name: Create nextcloud directories
+  file:
+    state: directory
+    path: "{{ item }}"
+    owner: www-data
+    group: www-data
+    mode: 0755
+  with_list:
+  - "{{ nextcloud_storage_dir }}"
+  - "{{ nextcloud_archive_dir }}"
+
+- name: Download Nextloud {{ nextcloud_version }} md5sum
+  get_url:
+    url: "{{ nextcloud_download_url }}/nextcloud-{{ nextcloud_version }}.tar.bz2.md5"
+    dest: "{{ nextcloud_archive_dir }}/nextcloud-{{ nextcloud_version }}.tar.bz2.md5"
+
+- name: Get content of file "{{ nextcloud_archive_dir }}/nextcloud-{{ nextcloud_version }}.tar.bz2.md5"
+  slurp:
+    src: "{{ nextcloud_archive_dir }}/nextcloud-{{ nextcloud_version }}.tar.bz2.md5" 
+  register: nextcloud_md5_slurped
+
+- name: Extract md5 from file "{{ nextcloud_archive_dir }}/nextcloud-{{ nextcloud_version }}.tar.bz2.md5"
+  set_fact:
+    nextcloud_md5: "{{ (nextcloud_md5_slurped.content | b64decode).split(' ')[0] }}"
+
+- name: Download Nextloud {{ nextcloud_version }} archive
+  get_url:
+    url: "{{ nextcloud_download_url }}/nextcloud-{{ nextcloud_version }}.tar.bz2"
+    dest: "{{ nextcloud_archive_dir }}/nextcloud-{{ nextcloud_version }}.tar.bz2"
+    checksum: "md5:{{ nextcloud_md5 }}"
+
+- name: Create directory "{{ nextcloud_archive_dir }}/nextcloud-{{ nextcloud_version }}"
+  file:
+    state: directory
+    path: "{{ nextcloud_archive_dir }}/nextcloud-{{ nextcloud_version }}"
+  register: create_nextcloud_archive_directory
+
+- name: Unarchive "{{ nextcloud_archive_dir }}/nextcloud-{{ nextcloud_version }}.tar.bz2"
+  unarchive:
+    src: "{{ nextcloud_archive_dir }}/nextcloud-{{ nextcloud_version }}.tar.bz2"
+    dest: "{{ nextcloud_archive_dir }}/nextcloud-{{ nextcloud_version }}"
+    remote_src: yes
+  when: create_nextcloud_archive_directory.changed
+
+- name: Give ownership to 'www-data' on "{{ nextcloud_archive_dir }}/nextcloud-{{ nextcloud_version }}"
+  file:
+    path: "{{ nextcloud_archive_dir }}/nextcloud-{{ nextcloud_version }}"
+    owner: www-data
+    group: www-data
+    recurse: yes
+
+- name: Create symlink from "{{ nextcloud_archive_dir }}/nextcloud-{{ nextcloud_version }}/nextcloud" to "/var/www/nextcloud"
+  file:
+    state: link
+    src: "{{ nextcloud_archive_dir }}/nextcloud-{{ nextcloud_version }}/nextcloud"
+    path: /var/www/nextcloud
+
+- name: Activate apache2 modules
+  apache2_module:
+    name: "{{ item }}"
+    state: present
+  with_list:
+  - rewrite
+  - headers
+  - proxy_fcgi
+
+- name: Verify if "php7.2" a2mod is enabled
+  stat:
+    path: /etc/apache2/mods-enabled/php7.2.conf
+  register: a2_php7_2_mods_enabled
+
+- name: Disable "php7.2" a2mod
+  file:
+    state: absent
+    path: /etc/apache2/mods-enabled/php7.2.conf
+  when: a2_php7_2_mods_enabled.stat.exists
+  register: a2dismod_php7_2
+
+- name: Verify if "php7.2-fpm" a2conf is enabled
+  stat:
+    path: /etc/apache2/conf-enabled/php7.2-fpm.conf
+  register: a2_php7_2_conf_enabled
+
+- name: Enable "php7.2-fpm" a2conf
+  file:
+    state: link
+    src: /etc/apache2/conf-available/php7.2-fpm.conf
+    path: /etc/apache2/conf-enabled/php7.2-fpm.conf
+  register: a2enconf_php7_2_fpm
+
+- name: Copy NextCloud virtual host
+  template:
+    src: "{{ role_path }}/templates/etc_apache2_sites-available_nextcloud.conf.j2"
+    dest: /etc/apache2/sites-available/nextcloud.conf
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Activate NextCloud virtual host
+  file:
+    state: link
+    src: /etc/apache2/sites-available/nextcloud.conf
+    path: /etc/apache2/sites-enabled/nextcloud.conf
+
+- name: Create an alias for occ command
+  copy:
+    content: sudo -u www-data php /var/www/nextcloud/occ $@
+    dest: /usr/local/sbin/occ
+    owner: root
+    group: root
+    mode: 0700
+
+# First Install - start
+
+- name: Verify if "/var/www/nextcloud/config/config.php" exists
+  stat:
+    path: /var/www/nextcloud/config/config.php
+  register: config_php
+
+- name: Get password of {{ nextcloud_mysql_account }} account in MySQL
+  set_fact:
+    nextcloud_mysql_password: "{{ item }}"
+  with_file: "{{ minidc_working_directory }}/{{ mysql_pair }}/passwords/{{ nextcloud_mysql_account }}_password"
+  loop_control:
+    label: "{{ nextcloud_mysql_account }}_password"
+  no_log: true
+  when: not config_php.stat.exists
+
+- name: Get password of {{ nextcloud_ldap_account }} account in LDAP
+  set_fact:
+    nextcloud_ldap_password: "{{ item }}"
+  with_file: "{{ minidc_working_directory }}/{{ ldap_pair }}/passwords/{{ nextcloud_ldap_account }}_password"
+  loop_control:
+    label: "{{ nextcloud_ldap_account }}_password"
+  no_log: true
+  #when: not config_php.stat.exists
+
+- name: Install Nextcloud
+  command: /usr/bin/php /var/www/nextcloud/occ maintenance:install --database 'mysql' --database-host '{{ nextcloud_mysql_server }}' --database-name '{{ nextcloud_mysql_db }}'  --database-user '{{ nextcloud_mysql_account }}' --database-pass '{{ nextcloud_mysql_password }}' --admin-user '{{ nextcloud_admin_user }}' --admin-pass 'my_admin_password' --data-dir='{{ nextcloud_storage_dir }}/data'
+  become: yes
+  become_user: www-data
+  when: not config_php.stat.exists
+
+- set_fact:
+    occ_params:
+        config:system:
+            default_language: "{{ nextcloud_default_language }}"
+            memcache.local: \OC\Memcache\APCu
+            memcache.locking: \OC\Memcache\Redis
+            redis host: localhost
+            redis port: 6379
+            htaccess.RewriteBase: /
+            log_type: syslog
+            loglevel: 1
+            updater.release.channel: stable
+            overwrite.cli.url: "https://{{ certificate_name }}/"
+            overwriteprotocol: https
+            mail_from_address: "{{ nextcloud_admin_user }}"
+            mail_smtpmode: smtp
+            mail_smtpauthtype: PLAIN
+            mail_domain: "{{ nextcloud_mail_domain }}"
+            mail_smtphost: 127.0.0.1
+            mail_smtpport: 25
+            lost_password_link: disabled
+            trusted_domains 0: "{{ certificate_name }}"
+            trusted_proxies 0: "{{ nextcloud_proxy_ip }}"
+            ldapProviderFactory: OCA\\User_LDAP\\LDAPProviderFactory
+        app:
+            files_rightclick:
+            admin_audit:
+            user_ldap:
+            quota_warning:
+            sharerenamer:
+            impersonate:
+        ldap:
+            ldapHost: "{{ ldap_url }}"
+            ldapPort: 389
+            ldapBase: "{{ ldap_rootdn }}"
+            ldapBaseUsers: "ou={{ hostvars[ldap_pair]['ldap_ou_users'] }},{{ ldap_rootdn }}"
+            ldapBaseGroups: "ou={{ hostvars[ldap_pair]['ldap_ou_groups'] }},{{ ldap_rootdn }}"
+            ldapEmailAttribute: mail
+            ldapUserFilterObjectclass: inetOrgPerson
+            ldapLoginFilter: (&(objectclass=inetOrgPerson)(uid=%uid))
+            ldapGroupFilter: (objectclass=posixGroup)
+            ldapUuidUserAttribute: uid
+            ldapUuidGroupAttribute: uid
+            ldapUserDisplayName: cn
+            ldapUserFilter: (objectclass=inetOrgPerson)
+            ldapQuotaDefault: 1073741824
+            ldapGidNumber: gidNumber
+            ldapGroupMemberAssocAttr: gidNumber
+            ldapGroupDisplayName: uid
+            ldapTLS: 1
+            useMemberOfToDetectMembership: 0
+            ldapAgentName: "uid={{ nextcloud_ldap_account }},ou={{ hostvars[ldap_pair]['ldap_ou_applications'] }},{{ ldap_rootdn }}"
+            ldapAgentPassword: "{{ nextcloud_ldap_password }}"
+            ldapExperiencedAdmin: 1
+            ldapConfigurationActive: 1
+            ldapExpertUUIDUserAttr: uid
+            ldapExpertUsernameAttr: uid
+
+- name: Configure Nextcloud
+  command: "/usr/bin/php /var/www/nextcloud/occ config:system:set {{ item.key }} --value='{{ item.value }}'"
+  with_dict: "{{ occ_params['config:system'] }}"
+  become: yes
+  become_user: www-data
+  when: not config_php.stat.exists
+
+- name: Update htaccess
+  command: "/usr/bin/php /var/www/nextcloud/occ maintenance:update:htaccess"
+  become: yes
+  become_user: www-data
+  when: not config_php.stat.exists
+
+- name: Get the app list 
+  command: "/usr/bin/php /var/www/nextcloud/occ app:list --output=json_pretty"
+  become: yes
+  become_user: www-data
+  register: occ_app_list
+  changed_when: false
+  when: not config_php.stat.exists
+
+- name: Install applications
+  command: "/usr/bin/php /var/www/nextcloud/occ app:install {{ item.key }}"
+  with_dict: "{{ occ_params['app'] }}"
+  become: yes
+  become_user: www-data
+  when:
+  - not config_php.stat.exists
+  - item.key not in (occ_app_list.stdout | from_json)['enabled'].keys()
+  - item.key not in (occ_app_list.stdout | from_json)['disabled'].keys()
+
+- name: Enable applications
+  command: "/usr/bin/php /var/www/nextcloud/occ app:enable {{ item.key }}"
+  with_dict: "{{ occ_params['app'] }}"
+  become: yes
+  become_user: www-data
+  when:
+  - not config_php.stat.exists
+  - item.key in (occ_app_list.stdout | from_json)['disabled'].keys() or 
+    (item.key not in (occ_app_list.stdout | from_json)['disabled'].keys() and
+    item.key not in (occ_app_list.stdout | from_json)['enabled'].keys())
+
+- name: Initialize LDAP app
+  command: "/usr/bin/php /var/www/nextcloud/occ ldap:create-empty-config"
+  become: yes
+  become_user: www-data
+  when: not config_php.stat.exists
+
+- name: Configure LDAP app
+  command: "/usr/bin/php /var/www/nextcloud/occ ldap:set-config s01 '{{ item.key }}' '{{ item.value }}'"
+  with_dict: "{{ occ_params['ldap'] }}"
+  become: yes
+  become_user: www-data
+  when: not config_php.stat.exists
+
+# First Install - end
+
+- name: Restart service php7.2-fpm
+  systemd:
+    name: php7.2-fpm
+    state: restarted
+  when: copy_php_ini.changed
+
+- name: Restart apache2
+  systemd:
+    name: apache2
+    state: restarted
+  when: not config_php.stat.exists or
+        a2enconf_php7_2_fpm.changed or
+        a2dismod_php7_2.changed
+
+- name: Set cron for nextcloud
+  cron:
+    name: cron.php
+    user: www-data
+    value: php -f /var/www/nextcloud/cron.php
+    minute: '*/15'
+
+- name: Add 'Header set Referrer-Policy "no-referrer"' to disable warning
+  lineinfile:
+    path: /var/www/nextcloud/.htaccess
+    regexp: '^    Header set Referrer-Policy'
+    insertafter: '^    Header set X-Permitted-Cross-Domain-Policies "none"'
+    line: '    Header set Referrer-Policy "no-referrer"'
+
+# Backup
+
+- name: Backup "/var/www/nextcloud/config/config.php"
+  fetch:
+    src: /var/www/nextcloud/config/config.php
+    dest: "{{ minidc_working_directory }}"

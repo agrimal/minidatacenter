@@ -55,21 +55,29 @@
   - postfix_conf.ldap_recipient_maps is defined
   - postfix_conf.ldap_recipient_maps
 
-- name: Copy LDAP certificate
+- name: Copy letsencrypt certificate
   copy:
     src: "{{ minidc_working_directory }}/{{ rvprx_pair }}/etc/letsencrypt/live/{{ certificate_name }}/fullchain.pem"
     dest: "{{ ca_cert_dir }}/{{ certificate_name }}-fullchain.pem"
   register: copy_ldap_crt_task
-  when: use_letsencrypt_rvprx_cert
-
-- name: Copy LDAP key
+  when:
+  - use_letsencrypt_rvprx_cert is defined
+  - use_letsencrypt_rvprx_cert
+  - postfix_conf.ldap_recipient_maps is defined or
+    saslauthd_conf is defined  
+ 
+- name: Copy letsencrypt key
   copy:
     src: "{{ minidc_working_directory }}/{{ rvprx_pair }}/etc/letsencrypt/live/{{ certificate_name }}/privkey.pem"
     dest: "{{ ca_private_dir }}/{{ certificate_name }}-privkey.pem"
     mode: 0640
     group: ssl-cert
   register: copy_ldap_key_task
-  when: use_letsencrypt_rvprx_cert
+  when:
+  - use_letsencrypt_rvprx_cert is defined
+  - use_letsencrypt_rvprx_cert
+  - postfix_conf.ldap_recipient_maps is defined or
+    saslauthd_conf is defined  
 
 - name: Reload postfix service
   systemd:
@@ -182,11 +190,16 @@
   when:
   - postfix_conf.super_users is defined
   - modify_etc_postfix_super_users.changed
+
 - name: Be sure postfix user can access private key
   file:
     path: "{{ ca_private_dir }}"
     mode: 0755
 
-
+- name: Be sure postfix is enabled and started
+  systemd:
+    name: postfix@-
+    state: started
+    enabled: yes
 
 # TODO Get the letsencrypt certificates from working dir

@@ -16,10 +16,6 @@
     src: "{{ role_path }}/templates/ovh_checkip_ovh.conf.j2"
     dest: /usr/local/sbin/ovh.conf
     mode: 0400
-  when:
-  - ovh_checkip_application_key is defined
-  - ovh_checkip_application_secret is defined
-  - ovh_checkip_consumer_key is defined
 
 - name: Install "python3-pip" package
   apt:

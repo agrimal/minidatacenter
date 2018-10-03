@@ -14,19 +14,19 @@
 #
 # * Basic Settings
 #
-user		= mysql
-pid-file	= /var/run/mysqld/mysqld.pid
-socket		= /var/run/mysqld/mysqld.sock
-port		= 3306
-basedir		= /usr
-datadir		= /var/lib/mysql
-tmpdir		= /tmp
+user		    = mysql
+pid-file	    = /var/run/mysqld/mysqld.pid
+socket		    = /var/run/mysqld/mysqld.sock
+port		    = 3306
+basedir		    = /usr
+datadir		    = /var/lib/mysql
+tmpdir		    = /tmp
 lc-messages-dir	= /usr/share/mysql
 skip-external-locking
 
 # Instead of skip-networking the default is now to listen only on
 # localhost which is more compatible and is not less secure.
-bind-address		= {{ bind_address }}
+bind-address = {{ bind_address }}
 
 #
 # * Fine Tuning
@@ -34,7 +34,7 @@ bind-address		= {{ bind_address }}
 key_buffer_size		= 16M
 max_allowed_packet	= 16M
 thread_stack		= 192K
-thread_cache_size       = 8
+thread_cache_size   = 8
 # This replaces the startup script and checks MyISAM tables if needed
 # the first time they are touched
 myisam_recover_options  = BACKUP
@@ -45,8 +45,8 @@ myisam_recover_options  = BACKUP
 #
 # * Query Cache Configuration
 #
-query_cache_limit	= 1M
-query_cache_size        = 16M
+query_cache_limit = 1M
+query_cache_size  = 16M
 
 #
 # * Logging and Replication
@@ -73,8 +73,8 @@ log_error = /var/log/mysql/error.log
 #       other settings you may need to change.
 #server-id		= 1
 #log_bin			= /var/log/mysql/mysql-bin.log
-expire_logs_days	= 10
-max_binlog_size   = 100M
+expire_logs_days = 10
+max_binlog_size  = 100M
 #binlog_do_db		= include_database_name
 #binlog_ignore_db	= exclude_database_name
 
@@ -101,6 +101,12 @@ max_binlog_size   = 100M
 # ssl-cipher=TLSv1.2
 # ..when MariaDB is compiled with YaSSL (default in Debian):
 # ssl=on
+{% if use_letsencrypt_rvprx_cert %}
+ssl      = on
+ssl-ca   = {{ ca_cert_dir }}/{{ ca_cert_file }}
+ssl-cert = {{ ca_cert_dir }}/{{ certificate_name }}-fullchain.pem
+ssl-key  = {{ ca_private_dir }}/{{ certificate_name }}-privkey-pkcs1.pem
+{% endif %}
 
 #
 # * Character sets

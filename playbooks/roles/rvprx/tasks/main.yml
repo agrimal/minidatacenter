@@ -225,12 +225,6 @@
   loop_control:
     label: "{{ item.item.server_name }} : {{ item.stat.exists }}"
 
-- debug:
-    var: vhost_certificates_exist
-
-- debug:
-    var: list_missing_certificates
-
 - name: Create all the nginx vhosts that don't already have certificate
   template:
     src: "{{ role_path }}/templates/main_vhost_template_without_certs.j2"
@@ -239,12 +233,8 @@
     group: root
   with_list: "{{ https_blocks }}"
   when:
-  #- vhost_certificates_exist[item.server_name] is not defined or
-  #  not vhost_certificates_exist[item.server_name] or
-  #  vhost_files_exist[item.server_name] is not defined or
-  #  not vhost_files_exist[item.server_name]
   - list_missing_certificates is defined
-  - item.server_name in list_missing_certificates
+  - item.server_name in (list_missing_certificates | map("first") | list)
   register: copy_vhosts_without_certs_task
 
 - name: Create all the nginx vhosts that already have certificate
@@ -255,12 +245,8 @@
     group: root
   with_list: "{{ https_blocks }}"
   when:
-  #- vhost_certificates_exist[item.server_name] is not defined or
-  #  not vhost_certificates_exist[item.server_name] or
-  #  vhost_files_exist[item.server_name] is not defined or
-  #  not vhost_files_exist[item.server_name]
   - list_missing_certificates is not defined or
-    item.server_name not in list_missing_certificates
+    item.server_name not in (list_missing_certificates | map("first") | list)
   register: copy_vhosts_with_certs_task
 
 - name: Enable all the vhosts

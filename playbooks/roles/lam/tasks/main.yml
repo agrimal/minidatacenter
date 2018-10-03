@@ -163,11 +163,11 @@
       modules: posixAccount_pwdHash: CRYPT-SHA512
       activeTypes: user,group,user_1
       # List of active account types.
-      activeTypes: user,group,user_1
+      #activeTypes: user,group,user_1
       # Users
       types: suffix_user: ou={{ hostvars[ldap_pair]['ldap_ou_users'] }},{{ ldap_rootdn }}
       types: customLabel_user: Users
-      types: modules_user: inetSweetOrgPerson,posixAccount,shadowAccount,imapSweetAccess
+      types: modules_user: inetOrgPerson,posixAccount,shadowAccount,imapAccess
       types: attr_user: #uid;#givenName;#sn;#uidNumber;#gidNumber
       types: filter_user:
       types: hidden_user:
@@ -188,39 +188,39 @@
     insertafter: '[#]{99}\n'
   when: a2enmod_task.changed
 
-- name: Read content of file "/usr/share/ldap-account-manager/lib/modules/inetOrgPerson.inc"
-  slurp:
-    src: /usr/share/ldap-account-manager/lib/modules/inetOrgPerson.inc
-  register: inetOrgPerson_slurped
-
-- name: Create content for file "/usr/share/ldap-account-manager/lib/modules/inetSweetOrgPerson.inc"
-  set_fact:
-    inetSweetOrgPerson_content: "{{ inetOrgPerson_slurped.content | b64decode | regex_replace('inetOrgPerson', 'inetSweetOrgPerson') }}"
-
-- name: Create file "/usr/share/ldap-account-manager/lib/modules/inetSweetOrgPerson.inc"
-  copy:
-    content: "{{ inetSweetOrgPerson_content }}"
-    dest: /usr/share/ldap-account-manager/lib/modules/inetSweetOrgPerson.inc
-    owner: root
-    group: root
-    mode: 0644
-
-- name: Read content of file "/usr/share/ldap-account-manager/lib/modules/imapAccess.inc"
-  slurp:
-    src: /usr/share/ldap-account-manager/lib/modules/imapAccess.inc
-  register: imapAccess_slurped
-
-- name: Create content for file "/usr/share/ldap-account-manager/lib/modules/imapSweetAccess.inc"
-  set_fact:
-    imapSweetAccess_content: "{{ imapAccess_slurped.content | b64decode | regex_replace('inetOrgPerson', 'inetSweetOrgPerson') | regex_replace('imapAccess', 'imapSweetAccess') }}"
-
-- name: Create file "/usr/share/ldap-account-manager/lib/modules/imapSweetAccess.inc"
-  copy:
-    content: "{{ imapSweetAccess_content }}"
-    dest: /usr/share/ldap-account-manager/lib/modules/imapSweetAccess.inc
-    owner: root
-    group: root
-    mode: 0644
+#- name: Read content of file "/usr/share/ldap-account-manager/lib/modules/inetOrgPerson.inc"
+#  slurp:
+#    src: /usr/share/ldap-account-manager/lib/modules/inetOrgPerson.inc
+#  register: inetOrgPerson_slurped
+#
+#- name: Create content for file "/usr/share/ldap-account-manager/lib/modules/inetSweetOrgPerson.inc"
+#  set_fact:
+#    inetSweetOrgPerson_content: "{{ inetOrgPerson_slurped.content | b64decode | regex_replace('inetOrgPerson', 'inetSweetOrgPerson') }}"
+#
+#- name: Create file "/usr/share/ldap-account-manager/lib/modules/inetSweetOrgPerson.inc"
+#  copy:
+#    content: "{{ inetSweetOrgPerson_content }}"
+#    dest: /usr/share/ldap-account-manager/lib/modules/inetSweetOrgPerson.inc
+#    owner: root
+#    group: root
+#    mode: 0644
+#
+#- name: Read content of file "/usr/share/ldap-account-manager/lib/modules/imapAccess.inc"
+#  slurp:
+#    src: /usr/share/ldap-account-manager/lib/modules/imapAccess.inc
+#  register: imapAccess_slurped
+#
+#- name: Create content for file "/usr/share/ldap-account-manager/lib/modules/imapSweetAccess.inc"
+#  set_fact:
+#    imapSweetAccess_content: "{{ imapAccess_slurped.content | b64decode | regex_replace('inetOrgPerson', 'inetSweetOrgPerson') | regex_replace('imapAccess', 'imapSweetAccess') }}"
+#
+#- name: Create file "/usr/share/ldap-account-manager/lib/modules/imapSweetAccess.inc"
+#  copy:
+#    content: "{{ imapSweetAccess_content }}"
+#    dest: /usr/share/ldap-account-manager/lib/modules/imapSweetAccess.inc
+#    owner: root
+#    group: root
+#    mode: 0644
 
 - name: Be sure the directory "/var/lib/ldap-account-manager/config/profiles/lam" exists
   file:
