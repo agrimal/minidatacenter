@@ -215,6 +215,8 @@
 
 - name: Install Nextcloud
   command: /usr/bin/php /var/www/nextcloud/occ maintenance:install --database 'mysql' --database-host '{{ nextcloud_mysql_server }}' --database-name '{{ nextcloud_mysql_db }}'  --database-user '{{ nextcloud_mysql_account }}' --database-pass '{{ nextcloud_mysql_password }}' --admin-user '{{ nextcloud_admin_user }}' --admin-pass 'my_admin_password' --data-dir='{{ nextcloud_storage_dir }}/data'
+  args:
+    warn: false
   become: yes
   become_user: www-data
   when: not config_php.stat.exists
@@ -250,6 +252,7 @@
             quota_warning:
             sharerenamer:
             impersonate:
+            onlyoffice:
         ldap:
             ldapHost: "{{ ldap_url }}"
             ldapPort: 389

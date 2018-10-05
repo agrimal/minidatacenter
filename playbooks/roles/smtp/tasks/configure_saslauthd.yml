@@ -10,24 +10,24 @@
     state: directory
     recurse: yes
 
-- name: Check the type of "/var/run/saslauthd"
-  stat:
-    path: /var/run/saslauthd
-  register: stat_var_run_saslauthd
+#- name: Check the type of "/var/run/saslauthd"
+#  stat:
+#    path: /var/run/saslauthd
+#  register: stat_var_run_saslauthd
 
-- name: Delete directory "/var/run/saslauthd"
-  file:
-    path: /var/run/saslauthd
-    state: absent
-  when:
-  - stat_var_run_saslauthd.stat.isdir is defined
-  - stat_var_run_saslauthd.stat.isdir
+#- name: Delete directory "/var/run/saslauthd"
+#  file:
+#    path: /var/run/saslauthd
+#    state: absent
+#  when:
+#  - stat_var_run_saslauthd.stat.isdir is defined
+#  - stat_var_run_saslauthd.stat.isdir
 
-- name: Create symlink from "/var/spool/postfix/var/run/saslauthd" to "/var/run/saslauthd"
-  file:
-    path: /var/run/saslauthd
-    src: /var/spool/postfix/var/run/saslauthd
-    state: link
+#- name: Create symlink from "/var/spool/postfix/var/run/saslauthd" to "/var/run/saslauthd"
+#  file:
+#    path: /var/run/saslauthd
+#    src: /var/spool/postfix/var/run/saslauthd
+#    state: link
 
 - name: Add user postfix in group sasl
   user:

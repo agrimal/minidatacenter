@@ -218,3 +218,9 @@
 - name: Configure TimeZone
   timezone:
     name: "{{ local_timezone }}"
+
+- name: Create symlink from "{{ playbook_dir }}/../ansible.cfg" to /root/.ansible.cfg
+  file:
+    state: link
+    path: /root/.ansible.cfg
+    src: "{{ playbook_dir }}/../ansible.cfg"

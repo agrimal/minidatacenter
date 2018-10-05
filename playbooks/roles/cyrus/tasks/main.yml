@@ -60,6 +60,18 @@
   with_list:
   - /var/spool/postfix/var/run/cyrus
   - /var/spool/postfix/var/run/cyrus/socket
+
+- name: Configure tmpfiles so cyrus can access saslauthd socket
+  copy:
+    content: |
+        #Type  Path                Mode UID   GID  Age Argument
+            d  /run/cyrus          0755 cyrus mail -   -
+            d  /run/cyrus/socket   0750 cyrus mail -   -
+            L+ /var/run/saslauthd  0750 cyrus mail -   /var/spool/postfix/var/run/saslauthd
+    dest: /etc/tmpfiles.d/cyrus-imapd.conf
+    owner: root
+    group: root
+    mode: 0644
  
 # Configure Cyrus
 
@@ -135,7 +147,7 @@
 
 - name: Enable and start systemd cyrus-imapd service
   systemd:
-    name: cyrus-imapd
+    name: cyrus-imapd.service
     state: started
     enabled: yes
 

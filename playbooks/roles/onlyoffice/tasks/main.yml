@@ -1,0 +1,246 @@
+---
+- name: Create directory "/etc/redis"
+  file:
+    state: directory
+    path: /etc/redis
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Copy file "/etc/redis/redis.conf"
+  copy:
+    src: "{{ role_path }}/files/etc_redis_redis.conf"
+    dest: /etc/redis/redis.conf
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Be sure the directory "/etc/nginx/sites-available" exists
+  file:
+    path: "{{ item }}"
+    owner: root
+    group: root
+    mode: 0755
+    state: directory
+  with_items:
+  - '/etc/nginx'
+  - '/etc/nginx/sites-available'
+
+# Prevent nginx from trying to listen on IPv6 and avoid error on APT module
+- name: Copy "/etc/nginx/sites-available/default"
+  copy:
+    src: "{{ role_path }}/files/main_vhost_default"
+    dest: /etc/nginx/sites-available/default
+    owner: root
+    group: root
+    mode: 0644
+  register: replace_default_vhost_task
+
+- name: Verify all packages are up-to-date
+  apt:
+    upgrade: yes
+    force_apt_get: yes
+
+- name: Install packages
+  action: apt name={{ item }} update_cache=yes cache_valid_time=3600 state=latest
+  with_list:
+  - gpg
+  - postgresql
+  - redis
+  - rabbitmq-server
+  - nginx-extras
+
+- name: Enable and start postgressql
+  systemd:
+    name: postgresql@10-main.service
+    state: started
+    enabled: yes
+
+- name: Disable default virtual host
+  file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+
+- name: Copy file "/etc/redis/redis.conf" again
+  copy:
+    src: "{{ role_path }}/files/etc_redis_redis.conf"
+    dest: /etc/redis/redis.conf
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Prevent nginx from listening on IPv6
+  copy:
+    content: |
+        include /etc/nginx/includes/onlyoffice-http.conf;
+        server {
+            listen 0.0.0.0:80 default_server;
+            server_tokens off;
+            include /etc/nginx/includes/onlyoffice-documentserver-*.conf;
+        }
+    dest: /etc/nginx/conf.d/onlyoffice-documentserver.conf
+
+- name: Download NodeJS {{ nodejs_version }}
+  get_url:
+    url: "https://deb.nodesource.com/setup_{{ nodejs_version }}"
+    dest: "/srv/setup_{{ nodejs_version }}"
+    mode: 0750
+  register: download_nodejs_repo_script
+
+- name: Add NodeJS repo
+  command: /srv/setup_8.x
+  when: download_nodejs_repo_script.changed
+
+- name: Install packages
+  action: apt name={{ item }} update_cache=yes cache_valid_time=3600 state=latest
+  with_list:
+  - nodejs
+
+- name: Verify if database onlyoffice exists
+  command: psql -t -c "SELECT 1 from pg_database WHERE datname='onlyoffice';"
+  args:
+    warn: false
+  become: true
+  become_user: postgres
+  changed_when: false
+  register: check_database
+
+- name: Create database onlyoffice
+  command: psql -t -c "CREATE DATABASE onlyoffice;"
+  when: check_database.stdout | regex_replace( '\s', '') != '1'
+  become: true
+  become_user: postgres
+
+- name: Verify if user onlyoffice exists
+  command: psql -t -c "SELECT 1 FROM pg_roles WHERE rolname='onlyoffice';"
+  become: true
+  become_user: postgres
+  changed_when: false
+  register: check_user
+
+- name: Create user onlyoffice
+  command: psql -t -c "CREATE USER onlyoffice WITH password 'onlyoffice';"
+  when: check_user.stdout | regex_replace( '\s', '') != '1'
+  become: true
+  become_user: postgres
+
+- name: Verify onlyoffice user's privileges
+  command: psql -t -l --no-align
+  become: true
+  become_user: postgres
+  changed_when: false
+  register: check_privileges
+
+- name: Grant all privileges on database onlyoffice to user onlyoffice
+  command: psql -t -c "GRANT ALL privileges ON DATABASE onlyoffice TO onlyoffice;"
+  when: "'onlyoffice=CTc/postgres' not in check_privileges.stdout_lines"
+  become: true
+  become_user: postgres
+
+- name: Add onlyoffice apt key
+  apt_key:
+    keyserver: keyserver.ubuntu.com
+    id: CB2DE8E5
+
+- name: Add onlyoffice repo
+  copy:
+    content: deb http://download.onlyoffice.com/repo/debian squeeze main
+    dest: /etc/apt/sources.list.d/onlyoffice.list
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Install packages
+  action: apt name={{ item }} update_cache=yes state=latest
+  with_list:
+  - onlyoffice-documentserver
+
+- name: Read content of "/etc/onlyoffice/documentserver/local.json"
+  slurp:
+    src: /etc/onlyoffice/documentserver/local.json
+  register: documentserver_local_json
+
+- name: Get secret for JWT
+  set_fact:
+    secret: "{{ lookup('password', minidc_working_directory + '/' + inventory_hostname + '/secret.txt length=50 chars=ascii_letters,digits,hexdigits') }}"
+
+- name: Add authentication token to the content of "/etc/onlyoffice/documentserver/local.json"
+  set_fact:
+    local_json: "{{ documentserver_local_json.content | b64decode | from_json | combine( {'services': {'CoAuthoring': {'secret': {'inbox': {'string': secret}, 'outbox': {'string': secret} }, 'token': {'enable': {'request': {'inbox': true, 'outbox': true}, 'browser': true} }}}}, recursive=true ) }}"
+
+- name: Write the file "/etc/onlyoffice/documentserver/local.json" with updated values
+  copy:
+    content: "{{ local_json | to_nice_json }}"
+    dest: /etc/onlyoffice/documentserver/local.json
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Check if onlyoffice app is enabled in nextcloud containers
+  command: /usr/bin/php /var/www/nextcloud/occ config:app:get onlyoffice enabled
+  args:
+    warn: false
+  become: yes
+  become_user: www-data
+  delegate_to: "{{ item }}"
+  with_list: "{{ nextcloud_pairs }}"
+  register: onlyoffice_enabled
+  changed_when: false
+  failed_when: false
+
+- name: Enable onlyoffice app in nextcloud containers
+  command: "/usr/bin/php /var/www/nextcloud/occ config:app:set onlyoffice enabled --value yes"
+  args:
+    warn: false
+  become: yes
+  become_user: www-data
+  delegate_to: "{{ item.item }}"
+  with_list: "{{ onlyoffice_enabled.results }}"
+  when: item.stdout != 'yes'
+  loop_control:
+    label: "{{ inventory_hostname }}"
+
+- name: Check if "DocumentServerUrl" is correctly set for onlyoffice app in nextcloud containers
+  command: /usr/bin/php /var/www/nextcloud/occ config:app:get onlyoffice DocumentServerUrl
+  delegate_to: "{{ item }}"
+  with_list: "{{ nextcloud_pairs }}"
+  become: yes
+  become_user: www-data
+  register: onlyoffice_DocumentServerUrl
+  changed_when: false
+  failed_when: false
+
+- name: Set the value of "DocumentServerUrl" for onlyoffice app in nextcloud containers
+  command: /usr/bin/php /var/www/nextcloud/occ config:app:set onlyoffice DocumentServerUrl --value "https://{{ certificate_name }}/"
+  delegate_to: "{{ item.item }}"
+  with_list: "{{ onlyoffice_DocumentServerUrl.results }}"
+  become: yes
+  become_user: www-data
+  when: item.stdout != ( 'https://' + certificate_name + '/')
+  loop_control:
+    label: "{{ inventory_hostname }}"
+
+- name: Check if "jwt_secret" is correctly set for onlyoffice app in nextcloud containers
+  command: /usr/bin/php /var/www/nextcloud/occ config:app:get onlyoffice jwt_secret
+  delegate_to: "{{ item }}"
+  with_list: "{{ nextcloud_pairs }}"
+  become: yes
+  become_user: www-data
+  register: onlyoffice_jwt_secret
+  changed_when: false
+  failed_when: false
+
+- name: Set the value of "jwt_secret" for onlyoffice app in nextcloud containers
+  command: /usr/bin/php /var/www/nextcloud/occ config:app:set onlyoffice jwt_secret --value "{{ secret }}"
+  delegate_to: "{{ item.item }}"
+  with_list: "{{ onlyoffice_jwt_secret.results }}"
+  become: yes
+  become_user: www-data
+  when: item.stdout != secret
+  loop_control:
+    label: "{{ inventory_hostname }}"
+
+- name: clears out the local repository of retrieved package files
+  command: apt-get clean warn=false
+  changed_when: false
+
