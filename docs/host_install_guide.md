@@ -150,7 +150,7 @@ zpool destroy rpool
 13. Configure the mirrored ZFS pool `rpool` on the 2 hard drives :
 ```bash
 zpool create -f -o ashift=12 -O atime=off -O canmount=off -O compression=lz4 \
-    -O normalization=formD -O mountpoint=/ -R /mnt rpool mirror \
+    -O normalization=formD -O xattr=sa -O mountpoint=/ -R /mnt rpool mirror \
     ${FIRST_DISK}-part1 ${SECOND_DISK}-part1
 ```
 
@@ -159,17 +159,23 @@ zpool create -f -o ashift=12 -O atime=off -O canmount=off -O compression=lz4 \
 zfs create -o canmount=off -o mountpoint=none rpool/ROOT
 zfs create -o canmount=noauto -o mountpoint=/ rpool/ROOT/ubuntu
 zfs mount rpool/ROOT/ubuntu
+
 zpool set bootfs=rpool/ROOT/ubuntu rpool
-zfs create -o setuid=off rpool/home
-zfs create -o mountpoint=/root rpool/root
-zfs create -o canmount=off -o setuid=off -o exec=off rpool/var
-zfs create -o com.sun:auto-snapshot=false rpool/var/cache
-zfs create rpool/var/log
-zfs create rpool/var/spool
-zfs create -o com.sun:auto-snapshot=false -o exec=on rpool/var/tmp
-zfs create rpool/srv
-zfs create -V 10G -b $(getconf PAGESIZE) -o compression=zle -o logbias=throughput -o sync=always -o \
-    primarycache=metadata -o secondarycache=none -o com.sun:auto-snapshot=false rpool/swap
+
+zfs create -o setuid=off                                rpool/home
+zfs create -o mountpoint=/root                          rpool/home/root
+zfs create -o canmount=off -o setuid=off -o exec=off    rpool/var
+zfs create -o com.sun:auto-snapshot=false               rpool/var/cache
+zfs create -o acltype=posixacl -o xattr=sa              rpool/var/log
+zfs create                                              rpool/var/spool
+zfs create -o com.sun:auto-snapshot=false -o exec=on    rpool/var/tmp
+zfs create                                              rpool/srv
+zfs create -o com.sun:auto-snapshot=false -o setuid=off rpool/tmp
+zfs create -V 10G -b $(getconf PAGESIZE) \
+           -o compression=zle -o logbias=throughput \
+           -o sync=always -o primarycache=metadata \
+           -o secondarycache=none \
+           -o com.sun:auto-snapshot=false               rpool/swap
 ```
 
 15. Change permissions on `/mnt/var/tmp`
@@ -180,6 +186,7 @@ chmod 1777 /mnt/var/tmp
 16. Install Ubuntu 18.04
 ```bash
 debootstrap bionic /mnt
+zfs set devices=off rpool
 ```
 
 17. Configure the hostname of your server
@@ -193,8 +200,9 @@ echo -e "127.0.0.1\tlocalhost\n127.0.1.1\t$MYSERVERNAME" > /mnt/etc/hosts
 ```bash
 cat << EOF > /mnt/etc/apt/sources.list
 deb http://archive.ubuntu.com/ubuntu/ bionic main restricted universe multiverse
-deb http://security.ubuntu.com/ubuntu/ bionic-security main restricted universe multiverse
 deb http://archive.ubuntu.com/ubuntu/ bionic-updates main restricted universe multiverse
+deb http://archive.ubuntu.com/ubuntu/ bionic-backports main restricted universe multiverse
+deb http://security.ubuntu.com/ubuntu/ bionic-security main restricted universe multiverse
 EOF
 ```
 
@@ -219,9 +227,10 @@ EOF
 
 20. Prepare the chroot
 ```bash
-mount --rbind /dev /mnt/dev
+mount --rbind /dev  /mnt/dev
 mount --rbind /proc /mnt/proc
-mount --rbind /sys /mnt/sys
+mount --rbind /sys  /mnt/sys
+mount --rbind /tmp  /mnt/tmp
 ```
 
 21. Chroot into the /mnt directory
@@ -243,6 +252,7 @@ update-locale LANG=en_US.UTF-8
 24. Install packages
 ```bash
 apt update
+apt upgrade
 apt install --yes --no-install-recommends linux-image-generic
 apt install --yes zfs-initramfs dosfstools grub-efi-amd64 openssh-server git
 ```
@@ -251,10 +261,12 @@ apt install --yes zfs-initramfs dosfstools grub-efi-amd64 openssh-server git
 ```bash
 zfs set mountpoint=legacy rpool/var/log
 zfs set mountpoint=legacy rpool/var/tmp
+zfs set mountpoint=legacy rpool/tmp
 
-cat >> /etc/fstab << EOF
-rpool/var/log /var/log zfs defaults 0 0
-rpool/var/tmp /var/tmp zfs defaults 0 0
+cat > /etc/fstab << EOF
+rpool/var/log        /var/log zfs  noatime,nodev,noexec,nosuid 0 0
+rpool/var/tmp        /var/tmp zfs  noatime,nodev,nosuid        0 0
+rpool/tmp            /tmp     zfs  noatime,nodev,nosuid        0 0
 EOF
 ```
 
@@ -283,7 +295,8 @@ grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=ubunt
 28. Configure the swap
 ```bash
 mkswap -f /dev/zvol/rpool/swap
-echo /dev/zvol/rpool/swap none swap defaults 0 0 >> /etc/fstab
+echo "/dev/zvol/rpool/swap none     swap defaults                    0 0" >> /etc/fstab
+echo RESUME=none > /etc/initramfs-tools/conf.d/resume
 swapon -av
 ```
 
@@ -317,12 +330,17 @@ You may want to disable this later for security reasons
 sed -i 's/#PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
 ```
 
-33. Snapshot your system
+33. Change systemd default target
+```bash
+systemctl set-default multi-user.target
+```
+
+34. Snapshot your system
 ```bash
 zfs snapshot rpool/ROOT/ubuntu@first_install
 ```
 
-34. Exit chroot, unmount partitions and reboot
+35. Exit chroot, unmount partitions and reboot
 ```bash
 exit
 mount | grep -v zfs | tac | awk '/\/mnt/ {print $3}' | xargs -i{} umount -lf {}
@@ -337,5 +355,5 @@ zfs import -f rpool
 reboot
 ```
 
-35. You can now log in your freshly installed Ubuntu 18.04 server and start
+36. You can now log in your freshly installed Ubuntu 18.04 server and start
 installing and configuring LXD.
