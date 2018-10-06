@@ -175,6 +175,13 @@
     owner: root
     group: root
     mode: 0644
+  register: copy_documentserver_local_json
+
+- name: Restart supervisor service
+  systemd:
+    name: supervisor 
+    state: restarted 
+  when: copy_documentserver_local_json.changed
 
 - name: Check if onlyoffice app is enabled in nextcloud containers
   command: /usr/bin/php /var/www/nextcloud/occ config:app:get onlyoffice enabled

@@ -195,6 +195,9 @@
   file:
     path: "{{ ca_private_dir }}"
     mode: 0755
+  when:
+  - use_letsencrypt_rvprx_cert is defined
+  - use_letsencrypt_rvprx_cert
 
 - name: Be sure postfix is enabled and started
   systemd:
