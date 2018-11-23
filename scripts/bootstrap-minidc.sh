@@ -22,25 +22,30 @@
 DIR="$(cd "$(dirname "$0")/.."; pwd)"
 
 # Packages version
-ANSIBLE_VERSION="2.5.2"
+ANSIBLE_VERSION="2.6.5"
 NETADDR_VERSION="0.7.19"
 DNSPYTHON_VERSION="1.15.0"
-PYTHON_LDAP_VERSION="3.0.0"
+PYTHON_LDAP_VERSION="3.1.0"
 
 # Install package virtualenv if not already installed
 dpkg-query -W -f='${Status}' virtualenv | grep 'ok installed' > /dev/null 2>&1
 
-if [ $? -eq 1 ]; then
+if ! dpkg -s virtualenv >/dev/null 2>&1; then
     echo "Installing package virtualenv..."
     apt install -y virtualenv
 fi
 
+if ! dpkg -s gcc >/dev/null 2>&1; then
+    echo "Installing package virtualenv..."
+    apt install -y gcc
+fi
+
 # Create a new virtualenv
 rm -rf ${DIR}/python-venv
-virtualenv -p python3 --clear ${DIR}/python-venv
+virtualenv -p python3 --clear ${DIR}/venv-python3
 
 # Enter the virtualenv
-source ${DIR}/python-venv/bin/activate
+source ${DIR}/venv-python3/bin/activate
 
 # Install required python packages
 # - netaddr required for ipaddr filter
@@ -48,9 +53,9 @@ pip install \
     ansible==$ANSIBLE_VERSION \
     netaddr==$NETADDR_VERSION \
     dnspython==$DNSPYTHON_VERSION \
-    python-ldap==$PYTHON_LDAP_VERSION
+#    python-ldap==$PYTHON_LDAP_VERSION
 #    pylxd==$PYLXD_VERSION \
 
 # Make symbolic link to easily launch ansible
-rm -f /usr/local/sbin/ansible-playbook-$ANSIBLE_VERSION
-ln -s ${DIR}/python-venv/bin/ansible-playbook /usr/local/sbin/ansible-playbook-$ANSIBLE_VERSION
+#rm -f /usr/local/sbin/ansible-playbook-$ANSIBLE_VERSION
+#ln -s ${DIR}/python-venv/bin/ansible-playbook /usr/local/sbin/ansible-playbook-$ANSIBLE_VERSION

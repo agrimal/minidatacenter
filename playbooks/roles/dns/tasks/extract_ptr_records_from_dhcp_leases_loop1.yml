@@ -2,9 +2,6 @@
 - set_fact:
     dhcp_subnets: "{{ hostvars[dhcp_pair]['dns_pairs_config'] | selectattr('server', 'equalto', inventory_hostname) | map(attribute='subnets') | list | sum(start=[]) }}"
 
-#- debug:
-#    var: dhcp_subnets
-
 # For each DHCP pair
 # For each DHCP subnet
 - include_tasks: extract_ptr_records_from_dhcp_leases_loop2.yml

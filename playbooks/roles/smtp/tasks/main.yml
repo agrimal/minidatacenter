@@ -71,6 +71,7 @@
     src: "{{ minidc_working_directory }}/{{ rvprx_pair }}/etc/letsencrypt/live/{{ certificate_name }}/privkey.pem"
     dest: "{{ ca_private_dir }}/{{ certificate_name }}-privkey.pem"
     mode: 0640
+    owner: postfix
     group: ssl-cert
   register: copy_ldap_key_task
   when:

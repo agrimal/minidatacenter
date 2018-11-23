@@ -135,6 +135,14 @@
   when: use_letsencrypt_rvprx_cert
   register: copy_letsencrypt_certificate_key
 
+- name: Create directory "/usr/sieve"
+  file:
+    path: /usr/sieve
+    state: directory
+    owner: cyrus
+    group: mail
+    mode: 0755
+
 - name: Restart systemd cyrus-imapd service
   systemd:
     name: cyrus-imapd
@@ -209,8 +217,9 @@
 
 - name: Dump the base mailboxes.db
   shell: "/usr/lib/cyrus/bin/ctl_mboxlist -d > /tmp/mailboxlist.txt"
+  args:
+    warn: false
   become: true
-  become_method: su
   become_user: cyrus
   changed_when: false
   when: backup_files

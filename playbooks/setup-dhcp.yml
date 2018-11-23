@@ -13,7 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 - name: Install Dynamic Host Control Protocol servers
-  hosts: ubudhcp01
+  hosts: dhcp
   remote_user: root
   roles:
-    - dhcp
+  - dhcp
+  - smtp

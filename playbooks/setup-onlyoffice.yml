@@ -16,5 +16,5 @@
   hosts: onlyoffice
   remote_user: root
   roles:
-    - smtp
-    - onlyoffice
+  - smtp
+  - onlyoffice

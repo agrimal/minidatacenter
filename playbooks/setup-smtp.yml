@@ -16,4 +16,4 @@
   hosts: smtp
   remote_user: root
   roles:
-    - smtp
+  - smtp

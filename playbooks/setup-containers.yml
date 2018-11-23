@@ -19,4 +19,4 @@
   hosts: containers
   remote_user: root
   roles:
-    - containers
+  - containers

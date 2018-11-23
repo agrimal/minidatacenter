@@ -16,5 +16,5 @@
   hosts: nextcloud
   remote_user: root
   roles:
-    - smtp
-    - nextcloud
+  - smtp
+  - nextcloud

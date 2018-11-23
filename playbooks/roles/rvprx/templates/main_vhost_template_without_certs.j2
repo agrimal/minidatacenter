@@ -1,23 +1,14 @@
 server {
-    client_max_body_size 1024M;
-    listen               {{ sslh_ssl_redirect_port }} ssl http2;
+    client_max_body_size 10M;
+    listen               80;
     server_name          {{ item.server_name }};
+    access_log syslog:server=unix:/dev/log,facility=daemon,tag=nginx,nohostname;
 
-    location /.well-known {
+    location /.well-known/acme-challenge {
         alias /var/www/{{ item.server_name }}/.well-known/;
     }
 
-{% if item.proxy_pass is defined %}
-    location / {
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $remote_addr;
-        proxy_set_header Host $host;
-        proxy_buffering off;
-        proxy_pass {{ item.proxy_pass }};
-    }
-{% else %}
     location / {
         deny all;
     }
-{% endif %}
 }

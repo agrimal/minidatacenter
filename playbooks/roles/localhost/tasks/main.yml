@@ -122,6 +122,7 @@
       vm.max_map_count = 262144
       kernel.dmesg_restrict = 1
       net.core.netdev_max_backlog = 65536
+      net.core.netdev_budget = 600
   register: modify_sysctl_params
 
 - name: Load new sysctl parameters
@@ -140,7 +141,7 @@
     dest: /etc/profile.d/server_info.sh
     owner: root
     group: root
-    mode: 0644
+    mode: 0744
 
 - name: Copy "/etc/profile.d/server_info.py"
   copy:

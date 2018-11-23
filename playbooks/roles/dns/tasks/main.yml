@@ -352,7 +352,7 @@
   - item.skipped is not defined
   - "(item.msg is not defined) or (item.msg is defined and 'file not found' not in item.msg)"
   loop_control:
-    label: "{{ item._ansible_delegated_vars.ansible_delegated_host + ':' + item.source }}"
+    label: dhcp_leases 
 
 - name: Remove useless data from the list of DHCP leases
   vars:

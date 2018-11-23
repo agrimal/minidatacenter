@@ -1,6 +1,7 @@
 /var/log/plexmediaserver.log {
         daily
-        rotate 30
+        compress
+        rotate 7
         missingok
         ifempty
 }

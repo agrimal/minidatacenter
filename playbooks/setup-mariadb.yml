@@ -16,5 +16,5 @@
   hosts: mariadb
   remote_user: root
   roles:
-    - smtp
-    - mariadb
+  - smtp
+  - mariadb

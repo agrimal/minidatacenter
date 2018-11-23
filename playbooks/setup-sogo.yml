@@ -16,5 +16,5 @@
   hosts: sogo
   remote_user: root
   roles:
-    - smtp
-    - sogo
+  - smtp
+  - sogo

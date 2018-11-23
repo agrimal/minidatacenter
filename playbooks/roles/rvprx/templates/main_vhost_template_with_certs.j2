@@ -1,8 +1,17 @@
 server {
+    listen 80;
+    server_name {{ item.server_name }};
+    access_log syslog:server=unix:/dev/log,facility=daemon,tag=nginx,nohostname;
+    #access_log /var/log/nginx/port80-{{ item.server_name }}-access.log main;
+    return 301 https://$host$request_uri;
+}
+
+server {
 
     client_max_body_size 1024M;
     listen               {{ sslh_ssl_redirect_port }} ssl http2;
     server_name          {{ item.server_name }};
+    access_log syslog:server=unix:/dev/log,facility=daemon,tag=nginx,nohostname;
 
     ssl_certificate /etc/letsencrypt/live/{{ item.server_name }}/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/{{ item.server_name }}/privkey.pem;
@@ -13,9 +22,13 @@ server {
 {% endfor %}
 {% endif %}
 
-    location /.well-known {
+    location /.well-known/acme-challenge {
         alias /var/www/{{ item.server_name }}/.well-known/;
     }
+
+{% if item.custom_block_in_server_block is defined %}
+    {{ item.custom_block_in_server_block }}
+{% endif %}
 
 {% if item.proxy_pass is defined %}
     location / {

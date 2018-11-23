@@ -136,23 +136,23 @@
     mode: 0644
   register: modify_etc_nginx_conf_task
 
-- name: Copy Virtual Host "http_to_https_redirect"
-  copy:
-    src: "{{ role_path }}/files/main_vhost_http_to_https_redirect"
-    dest: /etc/nginx/sites-available/http_to_https_redirect
-    owner: root
-    group: root
-    mode: 0644
-  register: copy_vhost_http_to_https_redirect_task
-
-- name: Enable vhost http_to_https_redirect
-  file:
-    src: /etc/nginx/sites-available/http_to_https_redirect
-    dest: /etc/nginx/sites-enabled/http_to_https_redirect
-    owner: root
-    group: root
-    state: link
-  register: enable_vhost_http_to_https_redirect_task
+#- name: Copy Virtual Host "http_to_https_redirect"
+#  copy:
+#    src: "{{ role_path }}/files/main_vhost_http_to_https_redirect"
+#    dest: /etc/nginx/sites-available/http_to_https_redirect
+#    owner: root
+#    group: root
+#    mode: 0644
+#  register: copy_vhost_http_to_https_redirect_task
+#
+#- name: Enable vhost http_to_https_redirect
+#  file:
+#    src: /etc/nginx/sites-available/http_to_https_redirect
+#    dest: /etc/nginx/sites-enabled/http_to_https_redirect
+#    owner: root
+#    group: root
+#    state: link
+#  register: enable_vhost_http_to_https_redirect_task
 
 - name: Create the directories in "/var/www/..." for each letsencrypt domain
   file:
@@ -196,6 +196,7 @@
     list_existing_primary_alternative_names: "{{ list_existing_primary_alternative_names | default([]) + ((item.stdout | regex_replace('(?s)^.*?\\s+(DNS:.+?)\\n.*$', '\\1') | regex_replace('DNS:', '')).split(', ') | map('regex_replace', '^(.*)$', '\\1,' + item.item.key) | list ) }}"
   with_list: "{{ list_alt_names_command.results }}"
   when: item.stdout is defined
+  #register: list_existing_primary_alternative_names_task
   loop_control:
     label: "{{ item.item.key }}"
 
@@ -203,6 +204,7 @@
   set_fact:
     dict_existing_primary_alternative_names: "{{ dict_existing_primary_alternative_names | default({}) | combine({ item.split(',').0 : item.split(',').1 }) }}"
   with_list: "{{ list_existing_primary_alternative_names }}"
+  when: list_existing_primary_alternative_names is defined
 
 - name: Create the list of missing certificates
   set_fact:
@@ -210,7 +212,10 @@
   with_subelements:
   - "{{ letsencrypt.domains }}"
   - domains
-  when: dict_existing_primary_alternative_names[item.1] is not defined
+  when:
+  - dict_existing_primary_alternative_names is not defined or
+    dict_existing_primary_alternative_names is defined and
+    dict_existing_primary_alternative_names[item.1] is not defined
 
 - name: Verify for each nginx vhost if the file exists in "/etc/nginx/sites-available"
   stat:
@@ -265,11 +270,11 @@
     state: restarted
   when:
     - modify_etc_nginx_conf_task.changed or
-      copy_vhost_http_to_https_redirect_task.changed or
-      enable_vhost_http_to_https_redirect_task.changed or
       copy_vhosts_without_certs_task.changed or
       enable_vhosts_task.changed or
       copy_vhosts_with_certs_task.changed
+      #copy_vhost_http_to_https_redirect_task.changed or
+      #enable_vhost_http_to_https_redirect_task.changed or
 
 - name: Create dictionary of wanted certificates
   set_fact:
@@ -279,26 +284,26 @@
   - domains
 
 - name: Create certificates
-  command: certbot --non-interactive --nginx --webroot-path /var/www/{{ dict_wanted_primary_alternative_names[item.0] }} --domain {{ (letsencrypt.domains | selectattr('cert_id', 'equalto', item.1) | list).0.domains | join( ' --domain ') }} --expand
+  command: certbot --non-interactive --nginx certonly --webroot-path /var/www/{{ dict_wanted_primary_alternative_names[item.0] }} --domain {{ (letsencrypt.domains | selectattr('cert_id', 'equalto', item.1) | list).0.domains | join( ' --domain ') }} --expand
   with_list: "{{ list_missing_certificates }}"
   when: list_missing_certificates is defined
   register: create_certificates
 
-- name: Enable vhost http_to_https_redirect
-  file:
-    src: /etc/nginx/sites-available/http_to_https_redirect
-    dest: /etc/nginx/sites-enabled/http_to_https_redirect
-    owner: root
-    group: root
-    state: link
-  register: enable_vhost_http_to_https_redirect_task
-  when: create_certificates.changed
+#- name: Enable vhost http_to_https_redirect
+#  file:
+#    src: /etc/nginx/sites-available/http_to_https_redirect
+#    dest: /etc/nginx/sites-enabled/http_to_https_redirect
+#    owner: root
+#    group: root
+#    state: link
+#  register: enable_vhost_http_to_https_redirect_task
+#  when: create_certificates.changed
 
-- name: Reload nginx service
-  systemd:
-    name: nginx
-    state: reloaded
-  when: enable_vhost_http_to_https_redirect_task.changed
+#- name: Reload nginx service
+#  systemd:
+#    name: nginx
+#    state: reloaded
+#  when: enable_vhost_http_to_https_redirect_task.changed
 
 - name: Override certbot.service
   copy:

@@ -11,19 +11,19 @@
     url: https://downloads.plex.tv/plex-keys/PlexSign.key
     state: present
 
-- name: Add / Verify Plex repository
-  template:
-    src: "{{ role_path }}/templates/main_plexmediaserver.list.j2"
-    dest: /etc/apt/sources.list.d/plexmediaserver.list
-    owner: root
-    group: root
-    mode: 0644
-
-- name: Update repositories cache and install package "plexmediaserver"
-  apt:
-    name: plexmediaserver
-    update_cache: yes
-    state: present
+#- name: Add / Verify Plex repository
+#  template:
+#    src: "{{ role_path }}/templates/main_plexmediaserver.list.j2"
+#    dest: /etc/apt/sources.list.d/plexmediaserver.list
+#    owner: root
+#    group: root
+#    mode: 0644
+#
+#- name: Update repositories cache and install package "plexmediaserver"
+#  apt:
+#    name: plexmediaserver
+#    update_cache: yes
+#    state: present
 
 - name: Check if "/etc/systemd/system/plexmediaserver.service" exists
   stat:

@@ -16,5 +16,5 @@
   hosts: cyrus
   remote_user: root
   roles:
-    - smtp
-    - cyrus
+  - smtp
+  - cyrus

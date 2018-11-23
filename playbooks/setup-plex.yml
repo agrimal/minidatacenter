@@ -16,4 +16,4 @@
   hosts: plex
   remote_user: root
   roles:
-    - plex
+  - plex

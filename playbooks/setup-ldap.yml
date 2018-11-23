@@ -16,4 +16,5 @@
   hosts: ldap
   remote_user: root
   roles:
-    - ldap
+  - ldap
+  - smtp

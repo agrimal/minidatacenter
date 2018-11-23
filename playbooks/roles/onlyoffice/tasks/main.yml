@@ -97,7 +97,7 @@
   - nodejs
 
 - name: Verify if database onlyoffice exists
-  command: psql -t -c "SELECT 1 from pg_database WHERE datname='onlyoffice';"
+  shell: psql -t -c "SELECT 1 from pg_database WHERE datname='onlyoffice';"
   args:
     warn: false
   become: true
@@ -184,7 +184,7 @@
   when: copy_documentserver_local_json.changed
 
 - name: Check if onlyoffice app is enabled in nextcloud containers
-  command: /usr/bin/php /var/www/nextcloud/occ config:app:get onlyoffice enabled
+  shell: /usr/bin/php /var/www/nextcloud/occ config:app:get onlyoffice enabled
   args:
     warn: false
   become: yes
@@ -196,7 +196,7 @@
   failed_when: false
 
 - name: Enable onlyoffice app in nextcloud containers
-  command: "/usr/bin/php /var/www/nextcloud/occ config:app:set onlyoffice enabled --value yes"
+  shell: "/usr/bin/php /var/www/nextcloud/occ config:app:set onlyoffice enabled --value yes"
   args:
     warn: false
   become: yes
