@@ -22,7 +22,7 @@
 DIR="$(cd "$(dirname "$0")/.."; pwd)"
 
 # Packages version
-ANSIBLE_VERSION="2.6.5"
+ANSIBLE_VERSION="2.6.8"
 NETADDR_VERSION="0.7.19"
 DNSPYTHON_VERSION="1.15.0"
 PYTHON_LDAP_VERSION="3.1.0"
@@ -53,9 +53,4 @@ pip install \
     ansible==$ANSIBLE_VERSION \
     netaddr==$NETADDR_VERSION \
     dnspython==$DNSPYTHON_VERSION \
-#    python-ldap==$PYTHON_LDAP_VERSION
-#    pylxd==$PYLXD_VERSION \
 
-# Make symbolic link to easily launch ansible
-#rm -f /usr/local/sbin/ansible-playbook-$ANSIBLE_VERSION
-#ln -s ${DIR}/python-venv/bin/ansible-playbook /usr/local/sbin/ansible-playbook-$ANSIBLE_VERSION
