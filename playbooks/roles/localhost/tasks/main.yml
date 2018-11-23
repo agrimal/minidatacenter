@@ -184,11 +184,11 @@
   changed_when: False
   failed_when: False
 
-- name: Delete LXD profile "default"
-  command: lxc profile delete default
-  when:
-  - lxd_init
-  - lxc_profile_show_default_task.rc == 0
+#- name: Delete LXD profile "default"
+#  command: lxc profile delete default
+#  when:
+#  - lxd_init
+#  - lxc_profile_show_default_task.rc == 0
 
 - name: Verify if LXD storage "lxd" exists
   command: lxc storage show lxd
