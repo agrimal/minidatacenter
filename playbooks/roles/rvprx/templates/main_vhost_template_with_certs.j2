@@ -44,8 +44,10 @@ server {
 {% endif %}
     }
 {% else %}
+{% if item.no_default_location_root is not defined or not item.no_default_location_root %}
     location / {
         deny all;
     }
+{% endif %}
 {% endif %}
 }

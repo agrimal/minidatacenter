@@ -16,6 +16,8 @@ alias deploy_sogo='/srv/minidc/venv-python3/bin/ansible-playbook -i {{ minidc_wo
 alias deploy_mariadb='/srv/minidc/venv-python3/bin/ansible-playbook -i {{ minidc_working_directory }}/inventory.yml /srv/minidc/playbooks/setup-mariadb.yml'
 alias deploy_nextcloud='/srv/minidc/venv-python3/bin/ansible-playbook -i {{ minidc_working_directory }}/inventory.yml /srv/minidc/playbooks/setup-nextcloud.yml'
 alias deploy_onlyoffice='/srv/minidc/venv-python3/bin/ansible-playbook -i {{ minidc_working_directory }}/inventory.yml /srv/minidc/playbooks/setup-onlyoffice.yml'
+alias deploy_zulip='/srv/minidc/venv-python3/bin/ansible-playbook -i {{ minidc_working_directory }}/inventory.yml /srv/minidc/playbooks/setup-zulip.yml'
+alias deploy_zabbix_agents='/srv/minidc/venv-python3/bin/ansible-playbook -i {{ minidc_working_directory }}/inventory.yml /srv/minidc/playbooks/setup-zabbix-agents.yml'
 
 
 alias lxcls='lxc list -c n4sNc,limits.cpu,limits.memory,boot.autostart,image.serial'

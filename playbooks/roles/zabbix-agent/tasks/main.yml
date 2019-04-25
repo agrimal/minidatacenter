@@ -1,0 +1,63 @@
+---
+- name: Install zabbix repo package
+  apt:
+    deb: https://repo.zabbix.com/zabbix/4.2/ubuntu/pool/main/z/zabbix-release/zabbix-release_4.2-1+bionic_all.deb
+  register: install_zabbix_source_list
+
+- name: Update cache if needed
+  apt:
+    update_cache: yes
+  when: install_zabbix_source_list.changed
+
+- name: Install zabbix agent
+  apt:
+    name: zabbix-agent
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Start and enable zabbix agent
+  systemd:
+    name: zabbix-agent
+    state: started
+    enabled: yes
+
+- name: Set the zabbix "Server" parameter
+  lineinfile:
+    path: /etc/zabbix/zabbix_agentd.conf
+    regexp: '^Server='
+    line: 'Server={{ zabbix_server }}'
+    insertafter: '^# Server='        
+  register: modify_etc_zabbix_zabbix_agentd_conf_Server
+
+- name: Set the zabbix "ServerActive" parameter                    
+  lineinfile:                                                                    
+    path: /etc/zabbix/zabbix_agentd.conf                                         
+    regexp: '^ServerActive='                                                           
+    line: 'ServerActive={{ zabbix_server }}'                                           
+    insertafter: '^# ServerActive='        
+  register: modify_etc_zabbix_zabbix_agentd_conf_ServerActive
+
+- name: Set the zabbix "Hostname" parameter
+  lineinfile:                                                                    
+    path: /etc/zabbix/zabbix_agentd.conf                                         
+    regexp: '^Hostname='                                                           
+    line: 'Hostname={{ inventory_hostname }}'                                           
+    insertafter: '^# Hostname='        
+  register: modify_etc_zabbix_zabbix_agentd_conf_Hostname
+
+- name: Set the zabbix "StartAgents" parameter
+  lineinfile:                                                                    
+    path: /etc/zabbix/zabbix_agentd.conf                                         
+    regexp: '^StartAgents='                                                           
+    line: 'StartAgents=2'
+    insertafter: '^# StartAgents='        
+  register: modify_etc_zabbix_zabbix_agentd_conf_StartAgents
+
+- name: Restart the zabbix agent
+  systemd:
+    name: zabbix-agent
+    state: restarted
+  when: modify_etc_zabbix_zabbix_agentd_conf_Server.changed or
+        modify_etc_zabbix_zabbix_agentd_conf_ServerActive.changed or
+        modify_etc_zabbix_zabbix_agentd_conf_Hostname.changed or
+        modify_etc_zabbix_zabbix_agentd_conf_StartAgents.changed

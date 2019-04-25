@@ -35,4 +35,7 @@ for domain, subDomain_list in records.items():
 
 if change == 0:
     print("Nothing to change.")
+else:
+    print("Refreshing the zone.")
+    client.post('/domain/zone/' + domain + '/refresh/')
 
